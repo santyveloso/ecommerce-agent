@@ -137,6 +137,126 @@ function Onboarding({ onDone }: { onDone: () => void }) {
   )
 }
 
+/* ── LinksPage ──────────────────────────────── */
+function LinksPage({ icons }: { icons: typeof Icons }) {
+  const STORAGE_KEY = 'ec_links_v1'
+
+  interface LinkItem {
+    id: string
+    name: string
+    url: string
+    category: string
+  }
+
+  const [links, setLinks] = useState<LinkItem[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) { try { return JSON.parse(saved) } catch {} }
+    return []
+  })
+
+  const [showAdd, setShowAdd] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newUrl, setNewUrl] = useState('')
+  const [newCategory, setNewCategory] = useState('Geral')
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(links)) }, [links])
+
+  const addLink = () => {
+    if (!newName.trim() || !newUrl.trim()) return
+    let url = newUrl.trim()
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    setLinks(prev => [...prev, {
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+      name: newName.trim(), url, category: newCategory.trim() || 'Geral'
+    }])
+    setNewName(''); setNewUrl(''); setShowAdd(false)
+  }
+
+  const saveEdit = () => {
+    if (!editingId || !newName.trim() || !newUrl.trim()) return
+    let url = newUrl.trim()
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    setLinks(prev => prev.map(l => l.id === editingId ? { ...l, name: newName.trim(), url, category: newCategory.trim() || 'Geral' } : l))
+    setEditingId(null); setNewName(''); setNewUrl(''); setShowAdd(false)
+  }
+
+  const categories = Array.from(new Set(links.map(l => l.category)))
+
+  return (
+    <div style={{ padding: '32px 40px', maxWidth: '1000px' }}>
+      <div className="topbar" style={{ marginBottom: 20 }}>
+        <div>
+          <h1 className="page-title">Links</h1>
+          <p className="greeting">Atalhos para ferramentas e paginas que uses no dia-a-dia</p>
+        </div>
+        <button className="refresh-btn" onClick={() => { setShowAdd(true); setEditingId(null); setNewName(''); setNewUrl('') }}>
+          {icons.plus} Adicionar link
+        </button>
+      </div>
+
+      {showAdd && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10,11,15,0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
+          onClick={() => { if (!editingId) setShowAdd(false) }}>
+          <form onSubmit={e => { e.preventDefault(); editingId ? saveEdit() : addLink() }} onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: 16, padding: 28, width: 440, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6)' }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>{editingId ? 'Editar link' : 'Adicionar link'}</h3>
+            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nome" autoFocus className="onboarding-input" />
+            <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="URL" className="onboarding-input" />
+            <input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Categoria" className="onboarding-input" />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button type="button" onClick={() => { setShowAdd(false); setEditingId(null) }}
+                style={{ background: 'transparent', border: '1px solid var(--surface-border)', borderRadius: 8, color: 'var(--text-secondary)', fontSize: 13.5, fontWeight: 500, padding: '10px 18px', cursor: 'pointer' }}>Cancelar</button>
+              <button type="submit" disabled={!newName.trim() || !newUrl.trim()}
+                style={{ background: newName.trim() && newUrl.trim() ? 'var(--accent)' : 'var(--surface-border)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13.5, fontWeight: 600, padding: '10px 18px', cursor: newName.trim() && newUrl.trim() ? 'pointer' : 'not-allowed', opacity: newName.trim() && newUrl.trim() ? 1 : 0.6 }}>
+                {editingId ? 'Guardar' : 'Adicionar'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {categories.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '80px 40px', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--accent-bg)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icons.link}</div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Ainda nao tens links. Adiciona o primeiro.</p>
+        </div>
+      ) : (
+        categories.map(cat => (
+          <div key={cat} style={{ marginBottom: 28 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>{cat}</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {links.filter(l => l.category === cat).map(link => (
+                <div key={link.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: 12, padding: '14px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent-bg)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icons.link}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{link.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 400 }}>{link.url}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="quick-btn" style={{ fontSize: 12 }}>{icons.box} Abrir</a>
+                    <button onClick={() => { setEditingId(link.id); setNewName(link.name); setNewUrl(link.url); setNewCategory(link.category); setShowAdd(true) }}
+                      style={{ width: 32, height: 32, border: '1px solid var(--surface-border)', background: 'transparent', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title="Editar">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button onClick={() => setLinks(prev => prev.filter(l => l.id !== link.id))}
+                      style={{ width: 32, height: 32, border: '1px solid var(--surface-border)', background: 'transparent', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title="Remover">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
 /* ── Main App ───────────────────────────────── */
 export default function App() {
   const [configured, setConfigured] = useState(() => !!localStorage.getItem('ec_configured'))
@@ -884,6 +1004,9 @@ function Dashboard() {
           <a className={`nav-item ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
             {Icons.memory}{!sidebarCollapsed && <span>Memoria</span>}
           </a>
+          <a className={`nav-item ${activeTab === 'links' ? 'active' : ''}`} onClick={() => setActiveTab('links')}>
+            {Icons.link}{!sidebarCollapsed && <span>Links</span>}
+          </a>
         </div>
 
         <div className="sidebar-footer">
@@ -1473,6 +1596,10 @@ function Dashboard() {
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === 'links' && (
+          <LinksPage icons={Icons} />
         )}
       </div>
     </div>
