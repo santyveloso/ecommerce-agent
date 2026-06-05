@@ -52,7 +52,7 @@ interface ChatSession {
 }
 
 const API = 'http://localhost:7777'
-const MODELS = ['gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4-20250514']
+const MODELS = ['gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4-20250514', 'claude-haiku-3-5']
 
 /* ── SVG Icons ──────────────────────────────── */
 const Icons = {
@@ -202,6 +202,16 @@ function Dashboard() {
       const res = await fetch(`${API}/dashboard`)
       if (res.ok) {
         const data = await res.json()
+        // Merge with Meta Ads metrics (ROAS, spend, purchases)
+        try {
+          const metricsRes = await fetch(`${API}/dashboard/metrics?preset=${period === 'today' ? 'today' : period === 'week' ? 'last_7' : 'this_month'}`)
+          if (metricsRes.ok) {
+            const metrics = await metricsRes.json()
+            data.roas = metrics.roas
+            data.spend = metrics.spend
+            data.orders = metrics.orders
+          }
+        } catch {}
         setDashboardData(data)
       }
     } catch (err) {
@@ -809,21 +819,52 @@ function Dashboard() {
 
   // ── Sidebar resize ──────────────────────
   const isResizing = useRef(false)
+  const sidebarRef = useRef<HTMLDivElement>(null)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const COLLAPSE_THRESHOLD = 80
+
   const handleResizeStart = useCallback((_e: React.MouseEvent) => {
     isResizing.current = true
+    setIsTransitioning(false)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }, [])
 
+  // Toggle collapsed/expanded on double-click or icon click
+  const toggleSidebar = useCallback(() => {
+    setIsTransitioning(true)
+    if (sidebarCollapsed) {
+      // Expand to last known width (or default 200)
+      setSidebarCollapsed(false)
+      setSidebarWidth(prev => Math.max(prev, 140))
+    } else {
+      setSidebarCollapsed(true)
+    }
+    setTimeout(() => setIsTransitioning(false), 200)
+  }, [sidebarCollapsed])
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return
-      setSidebarWidth(Math.max(180, Math.min(400, e.clientX)))
+      const newWidth = Math.max(56, Math.min(400, e.clientX))
+      setSidebarWidth(newWidth)
+      // Collapse when dragged below threshold
+      if (newWidth < COLLAPSE_THRESHOLD && !sidebarCollapsed) {
+        setSidebarCollapsed(true)
+      }
+      // Expand when dragged above threshold while collapsed
+      if (newWidth > COLLAPSE_THRESHOLD + 20 && sidebarCollapsed) {
+        setSidebarCollapsed(false)
+      }
     }
     const handleMouseUp = () => {
       isResizing.current = false
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      // Snap to collapsed width fully if under threshold
+      if (sidebarWidth < COLLAPSE_THRESHOLD && !sidebarCollapsed) {
+        setSidebarCollapsed(true)
+      }
     }
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
@@ -831,7 +872,7 @@ function Dashboard() {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [])
+  }, [sidebarCollapsed, sidebarWidth])
 
   // ── Studio @mention autocomplete ──────────
   const [studioShowSuggestions, setStudioShowSuggestions] = useState(false)
@@ -905,7 +946,7 @@ function Dashboard() {
             {Icons.grid}{!sidebarCollapsed && <span>Dashboard</span>}
           </a>
           <a className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
-            {Icons.chat}{!sidebarCollapsed && <span>Chat Agent</span>}
+            {Icons.chat}{!sidebarCollapsed && <span>chat</span>}
           </a>
           <a className={`nav-item ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>
             {Icons.cart}{!sidebarCollapsed && <span>Pedidos</span>}
@@ -965,26 +1006,26 @@ function Dashboard() {
               <div className="loading-screen"><div className="loader" /></div>
             ) : dashboardData ? (
               <>
-                <div className="cards">
+                <div className="cards four-cols">
                   <div className="card accent-blue">
                     <div className="card-icon" style={{ background: 'var(--chart-blue)' }}>{Icons.dollar}</div>
                     <div className="card-value">{dashboardData.revenueToday}</div>
                     <div className="card-label">Receita de Hoje</div>
-                    <div className="card-footer green">{Icons.trending} +12.5% vs ontem</div>
                   </div>
                   <div className="card accent-purple">
-                    <div className="card-icon" style={{ background: 'var(--chart-purple)' }}>{Icons.cart}</div>
-                    <div className="card-value">{dashboardData.ordersToday}</div>
-                    <div className="card-label">Pedidos Hoje</div>
-                    <div className="card-footer green">{Icons.trending} +8.3% vs ontem</div>
+                    <div className="card-icon" style={{ background: 'var(--chart-purple)' }}>{Icons.trending}</div>
+                    <div className="card-value">{dashboardData.roas != null ? `${dashboardData.roas}x` : '-'}</div>
+                    <div className="card-label">ROAS</div>
+                  </div>
+                  <div className="card accent-green">
+                    <div className="card-icon" style={{ background: 'var(--success)' }}>{Icons.cart}</div>
+                    <div className="card-value">{dashboardData.orders != null ? dashboardData.orders : dashboardData.ordersToday}</div>
+                    <div className="card-label">Compras</div>
                   </div>
                   <div className="card accent-cyan">
-                    <div className="card-icon" style={{ background: 'var(--chart-cyan)' }}>{Icons.box}</div>
-                    <div className="card-value">{dashboardData.products}</div>
-                    <div className="card-label">Produtos Ativos</div>
-                    {dashboardData.lowStock > 0 && (
-                      <div className="card-footer red">{Icons.alert} {dashboardData.lowStock} com stock baixo</div>
-                    )}
+                    <div className="card-icon" style={{ background: 'var(--chart-cyan)' }}>{Icons.dollar}</div>
+                    <div className="card-value">{dashboardData.spend != null ? `${dashboardData.spend.toFixed(2)}€` : '-'}</div>
+                    <div className="card-label">Gasto AdSpend</div>
                   </div>
                 </div>
 
