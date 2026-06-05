@@ -445,6 +445,30 @@ body {
 }
 .cal-muted { font-size: 11px; color: var(--text-muted); }
 
+/* ── calendar scroll contínuo ──────────────── */
+.cal-scroll {
+  height: 260px;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 8px;
+}
+.cal-scroll::-webkit-scrollbar { display: none; }
+.cal-month-page {
+  height: 100%;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+.cal-grid-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
 /* ── metric cards (3-col default, 4-col variant) ─ */
 .cards {
   display: grid;

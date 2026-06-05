@@ -287,11 +287,76 @@ function Dashboard() {
   const dateSinceRef = useRef<HTMLInputElement>(null)
   const dateUntilRef = useRef<HTMLInputElement>(null)
   const calGridRef = useRef<HTMLDivElement>(null)
-  const [calMonth, setCalMonth] = useState(() => new Date().getMonth())
-  const [calYear, setCalYear] = useState(() => new Date().getFullYear())
-  const [calSelect, setCalSelect] = useState<'since' | 'until'>('since')
+  const calScrollRef = useRef<HTMLDivElement>(null)
   const [calSince, setCalSince] = useState('')
   const [calUntil, setCalUntil] = useState('')
+  const [months, setMonths] = useState(() => {
+    const now = new Date(); const m = now.getMonth(); const y = now.getFullYear()
+    const prevM = m === 0 ? 11 : m - 1; const prevY = m === 0 ? y - 1 : y
+    const nextM = m === 11 ? 0 : m + 1; const nextY = m === 11 ? y + 1 : y
+    return [
+      { month: prevM, year: prevY, key: `${prevY}-${prevM}` },
+      { month: m, year: y, key: `${y}-${m}` },
+      { month: nextM, year: nextY, key: `${nextY}-${nextM}` },
+    ]
+  })
+  const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+
+  // Centraliza no mês atual ao abrir
+  useEffect(() => {
+    if (showDatePicker && calScrollRef.current) {
+      requestAnimationFrame(() => {
+        if (calScrollRef.current) calScrollRef.current.scrollTop = calScrollRef.current.clientHeight
+      })
+    }
+  }, [showDatePicker])
+
+  const shiftMonths = useCallback((dir: 'prev' | 'next') => {
+    setMonths(prev => {
+      if (dir === 'prev') {
+        const first = prev[0]
+        const newM = first.month === 0 ? 11 : first.month - 1
+        const newY = first.month === 0 ? first.year - 1 : first.year
+        return [{ month: newM, year: newY, key: `${newY}-${newM}` }, ...prev.slice(0, 2)]
+      } else {
+        const last = prev[2]
+        const newM = last.month === 11 ? 0 : last.month + 1
+        const newY = last.month === 11 ? last.year + 1 : last.year
+        return [...prev.slice(1), { month: newM, year: newY, key: `${newY}-${newM}` }]
+      }
+    })
+    // Re-centra o scroll após render
+    requestAnimationFrame(() => {
+      if (calScrollRef.current) calScrollRef.current.scrollTop = calScrollRef.current.clientHeight
+    })
+  }, [])
+
+  const renderMonth = (month: number, year: number) => {
+    const days = new Date(year, month + 1, 0).getDate()
+    const startDow = new Date(year, month, 1).getDay()
+    const cells: React.ReactNode[] = []
+    for (let i = 0; i < startDow; i++) cells.push(<div key={`e${i}`} className="cal-day empty" />)
+    for (let d = 1; d <= days; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      const isSince = calSince === dateStr
+      const isUntil = calUntil === dateStr
+      const inRange = calSince && calUntil && dateStr >= calSince && dateStr <= calUntil
+      const isToday = dateStr === new Date().toISOString().slice(0, 10)
+      cells.push(
+        <div key={d} className={`cal-day ${isSince || isUntil ? 'selected' : ''} ${inRange ? 'in-range' : ''} ${isToday ? 'today' : ''}`}
+          onClick={() => {
+            if (!calSince || (calSince && calUntil)) {
+              setCalSince(dateStr); setCalUntil('')
+            } else {
+              setCalUntil(dateStr)
+              changePeriod('custom', calSince, dateStr)
+            }
+          }}
+        >{d}</div>
+      )
+    }
+    return cells
+  }
   useEffect(() => {
     if (!showDatePicker) return
     const handler = (e: MouseEvent) => {
@@ -303,23 +368,7 @@ function Dashboard() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showDatePicker])
 
-  // Scroll no calendário para mudar mês
-  useEffect(() => {
-    const el = calGridRef.current
-    if (!el) return
-    const handler = (e: WheelEvent) => {
-      e.preventDefault()
-      if (e.deltaY > 0) {
-        if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1) }
-        else setCalMonth(m => m + 1)
-      } else {
-        if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1) }
-        else setCalMonth(m => m - 1)
-      }
-    }
-    el.addEventListener('wheel', handler, { passive: false })
-    return () => el.removeEventListener('wheel', handler)
-  }, [showDatePicker, calMonth, calYear])
+  // Scroll no calendário para mudar mês — contínuo com snap
 
   // Muda período (incluindo custom)
   const changePeriod = useCallback(async (p: string, since?: string, until?: string) => {
@@ -1194,7 +1243,7 @@ function Dashboard() {
                       {p === 'today' ? 'Hoje' : p === 'week' ? 'Semana' : 'Mes'}
                     </button>
                   ))}
-                  <button className={`period-btn ${dateRange ? 'active' : ''}`} onClick={() => { setShowDatePicker(!showDatePicker); setCalSince(''); setCalUntil(''); setCalSelect('since') }}>
+                  <button className={`period-btn ${dateRange ? 'active' : ''}`} onClick={() => { setShowDatePicker(!showDatePicker); setCalSince(''); setCalUntil('') }}>
                     {Icons.calendar}
                   </button>
                 </div>
@@ -1227,38 +1276,25 @@ function Dashboard() {
                     </div>
                     <div className="date-picker-custom">
                       <div className="cal-nav">
-                        <button className="cal-nav-btn" onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) } else setCalMonth(calMonth - 1) }}>{'‹'}</button>
-                        <span className="cal-nav-label">{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][calMonth]} {calYear}</span>
-                        <button className="cal-nav-btn" onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) } else setCalMonth(calMonth + 1) }}>{'›'}</button>
+                        <button className="cal-nav-btn" onClick={() => shiftMonths('prev')}>{'‹'}</button>
+                        <span className="cal-nav-label">{MONTH_NAMES[months[1].month]} {months[1].year}</span>
+                        <button className="cal-nav-btn" onClick={() => shiftMonths('next')}>{'›'}</button>
                       </div>
-                      <div className="cal-grid" ref={calGridRef}>
-                        {['D','S','T','Q','Q','S','S'].map(d => <div key={d} className="cal-day-header">{d}</div>)}
-                        {(() => {
-                          const days = new Date(calYear, calMonth + 1, 0).getDate()
-                          const startDow = new Date(calYear, calMonth, 1).getDay()
-                          const cells = []
-                          for (let i = 0; i < startDow; i++) cells.push(<div key={`e${i}`} className="cal-day empty" />)
-                          for (let d = 1; d <= days; d++) {
-                            const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-                            const isSince = calSince === dateStr
-                            const isUntil = calUntil === dateStr
-                            const inRange = calSince && calUntil && dateStr >= calSince && dateStr <= calUntil
-                            const isToday = dateStr === new Date().toISOString().slice(0, 10)
-                            cells.push(
-                              <div key={d} className={`cal-day ${isSince || isUntil ? 'selected' : ''} ${inRange ? 'in-range' : ''} ${isToday ? 'today' : ''}`}
-                                onClick={() => {
-                                  if (!calSince || (calSince && calUntil)) {
-                                    setCalSince(dateStr); setCalUntil(''); setCalSelect('until')
-                                  } else {
-                                    setCalUntil(dateStr)
-                                    changePeriod('custom', calSince, dateStr)
-                                  }
-                                }}
-                              >{d}</div>
-                            )
-                          }
-                          return cells
-                        })()}
+                      <div className="cal-scroll" ref={calScrollRef} onScroll={e => {
+                        const el = e.currentTarget
+                        if (el.scrollTop <= 5) shiftMonths('prev')
+                        else if (el.scrollTop >= el.clientHeight * 2 - 5) shiftMonths('next')
+                      }}>
+                        {months.map(m => (
+                          <div key={m.key} className="cal-month-page">
+                            <div className="cal-grid-header">
+                              {['D','S','T','Q','Q','S','S'].map(d => <div key={d} className="cal-day-header">{d}</div>)}
+                            </div>
+                            <div className="cal-grid">
+                              {renderMonth(m.month, m.year)}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                       <div className="cal-selection">
                         {calSince && <span className="cal-badge">De: {calSince}</span>}
