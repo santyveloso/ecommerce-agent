@@ -517,18 +517,30 @@ DATE_PRESETS = {
 
 
 @app.get("/dashboard/metrics")
-async def dashboard_metrics(preset: str = "today", force_refresh: bool = False):
-    """Métricas do dashboard: gasto ads, ROAS, revenue, orders (reais do Shopify)."""
+async def dashboard_metrics(preset: str = "today", since: str = "", until: str = "", force_refresh: bool = False):
+    """Métricas do dashboard: gasto ads, ROAS, revenue, orders (reais do Shopify).
+    Se since+until forem fornecidos, usa esses como período (sobrepõe preset).
+    """
     dp = DATE_PRESETS.get(preset, "today")
     from datetime import datetime, timedelta
 
-    # Mapa de presets para datas reais
     now = datetime.utcnow()
-    if preset == "today":
+
+    # Se veio since/until custom, usa esses. Senão calcula do preset.
+    if since and until:
+        start = since
+        end = until
+    elif preset == "today":
         start = now.strftime("%Y-%m-%d")
         end = now.strftime("%Y-%m-%d")
     elif preset == "last_7" or preset == "week":
         start = (now - timedelta(days=6)).strftime("%Y-%m-%d")
+        end = now.strftime("%Y-%m-%d")
+    elif preset == "last_14":
+        start = (now - timedelta(days=13)).strftime("%Y-%m-%d")
+        end = now.strftime("%Y-%m-%d")
+    elif preset == "last_30":
+        start = (now - timedelta(days=29)).strftime("%Y-%m-%d")
         end = now.strftime("%Y-%m-%d")
     elif preset == "this_month":
         start = now.replace(day=1).strftime("%Y-%m-%d")
@@ -538,7 +550,10 @@ async def dashboard_metrics(preset: str = "today", force_refresh: bool = False):
         end = now.strftime("%Y-%m-%d")
 
     # Meta Ads insights (com cache)
-    ads = await meta.get_insights(date_preset=dp, force_refresh=force_refresh)
+    if since and until:
+        ads = await meta.get_insights(since=since, until=until, force_refresh=force_refresh)
+    else:
+        ads = await meta.get_insights(date_preset=dp, force_refresh=force_refresh)
 
     # Orders reais do Shopify no período
     real_orders = []

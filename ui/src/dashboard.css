@@ -332,6 +332,68 @@ body {
 }
 .refresh-btn:hover { background: var(--surface); color: var(--text); border-color: var(--accent); }
 
+/* ── date picker dropdown ──────────────────── */
+.date-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.3);
+  display: flex;
+  gap: 0;
+  overflow: hidden;
+  min-width: 360px;
+}
+.date-picker-presets {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 2px;
+  border-right: 1px solid var(--surface-border);
+  min-width: 140px;
+}
+.preset-btn {
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.1s;
+}
+.preset-btn:hover { background: var(--surface-hover); color: var(--text); }
+.date-picker-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  min-width: 180px;
+}
+.date-picker-custom label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.date-input {
+  padding: 8px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+.date-input:focus { border-color: var(--accent); }
+
 /* ── metric cards (3-col default, 4-col variant) ─ */
 .cards {
   display: grid;
