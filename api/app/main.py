@@ -518,18 +518,32 @@ DATE_PRESETS = {
 
 @app.get("/dashboard/metrics")
 async def dashboard_metrics(preset: str = "today", force_refresh: bool = False):
-    """Métricas do dashboard: gasto ads, ROAS, revenue, orders."""
+    """Métricas do dashboard: gasto ads, ROAS, revenue, orders (reais do Shopify)."""
     dp = DATE_PRESETS.get(preset, "today")
+    from datetime import datetime, timedelta
+
+    # Mapa de presets para datas reais
+    now = datetime.utcnow()
+    if preset == "today":
+        start = now.strftime("%Y-%m-%d")
+        end = now.strftime("%Y-%m-%d")
+    elif preset == "last_7" or preset == "week":
+        start = (now - timedelta(days=6)).strftime("%Y-%m-%d")
+        end = now.strftime("%Y-%m-%d")
+    elif preset == "this_month":
+        start = now.replace(day=1).strftime("%Y-%m-%d")
+        end = now.strftime("%Y-%m-%d")
+    else:
+        start = now.strftime("%Y-%m-%d")
+        end = now.strftime("%Y-%m-%d")
 
     # Meta Ads insights (com cache)
     ads = await meta.get_insights(date_preset=dp, force_refresh=force_refresh)
 
-    # Orders count from Shopify (approximate — last N orders)
-    orders_count = 0
+    # Orders reais do Shopify no período
+    real_orders = []
     try:
-        orders = shopify.get_orders(50)
-        # Count orders in the period (rough — based on what Shopify returns)
-        orders_count = len(orders)
+        real_orders = shopify.get_orders_dated(start, end)
     except Exception:
         pass
 
@@ -537,7 +551,8 @@ async def dashboard_metrics(preset: str = "today", force_refresh: bool = False):
         "spend": ads["spend"],
         "roas": ads["roas"],
         "conversions_value": ads["conversions_value"],
-        "orders": ads["purchases"] or orders_count,
+        "orders": len(real_orders),
+        "revenue": sum(o["total"] for o in real_orders),
         "preset": preset,
     }
 

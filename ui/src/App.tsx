@@ -17,7 +17,7 @@ interface DashboardData {
   storeName: string; currency: string; products: number; lowStock: number
   ordersToday: number; revenueToday: string; pendingApprovals: number
   recentOrders: Order[]
-  roas?: number; spend?: number; orders?: number
+  roas?: number; spend?: number; orders?: number; revenue?: number
 }
 interface Message {
   role: 'user' | 'assistant'
@@ -210,6 +210,7 @@ function Dashboard() {
             data.roas = metrics.roas
             data.spend = metrics.spend
             data.orders = metrics.orders
+            data.revenue = metrics.revenue
           }
         } catch {}
         setDashboardData(data)
@@ -1082,8 +1083,8 @@ function Dashboard() {
                 <div className="cards four-cols">
                   <div className="card accent-blue">
                     <div className="card-icon" style={{ background: 'var(--chart-blue)' }}>{Icons.dollar}</div>
-                    <div className="card-value">{dashboardData.revenueToday}</div>
-                    <div className="card-label">Receita de Hoje</div>
+                    <div className="card-value">{dashboardData.revenue != null ? `${dashboardData.revenue.toFixed(2)}€` : dashboardData.revenueToday}</div>
+                    <div className="card-label">{period === 'today' ? 'Receita de Hoje' : period === 'week' ? 'Receita (7 dias)' : 'Receita do Mês'}</div>
                   </div>
                   <div className="card accent-purple">
                     <div className="card-icon" style={{ background: 'var(--chart-purple)' }}>{Icons.trending}</div>
@@ -1093,7 +1094,7 @@ function Dashboard() {
                   <div className="card accent-green">
                     <div className="card-icon" style={{ background: 'var(--success)' }}>{Icons.cart}</div>
                     <div className="card-value">{dashboardData.orders != null ? dashboardData.orders : dashboardData.ordersToday}</div>
-                    <div className="card-label">Compras</div>
+                    <div className="card-label">Compras{period === 'today' ? ' Hoje' : period === 'week' ? ' (7 dias)' : ' (Mês)'}</div>
                   </div>
                   <div className="card accent-cyan">
                     <div className="card-icon" style={{ background: 'var(--chart-cyan)' }}>{Icons.dollar}</div>
