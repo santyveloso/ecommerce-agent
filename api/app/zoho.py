@@ -259,6 +259,93 @@ class ZohoClient:
                 "date": date_str,
                 "content": content_text or content_html,
                 "contentHtml": content_html,
+                "threadId": str(msg.get("threadId", msg.get("conversationId", ""))) if msg.get("threadId") or msg.get("conversationId") else None,
+            }
+
+    async def get_thread(self, message_id: str) -> dict:
+        """Fetches the full thread/conversation for a given message."""
+        if self.is_demo():
+            # Simulated: return a made-up thread with the original message
+            content = await self.get_message_content(message_id)
+            return {
+                "threadId": "demo-thread",
+                "messages": [{
+                    "id": content["id"],
+                    "from": content["from"],
+                    "subject": content["subject"],
+                    "date": content["date"],
+                    "content": content["content"],
+                    "contentHtml": content["contentHtml"],
+                }]
+            }
+
+        token = await self.get_access_token()
+        account_id = await self.get_account_id()
+        region = self.config.zoho_region or "com"
+
+        # First get the message to find its threadId
+        msg = await self.get_message_content(message_id)
+        thread_id = msg.get("threadId")
+        
+        if not thread_id:
+            # No thread, return just this message
+            return {
+                "threadId": None,
+                "messages": [msg]
+            }
+
+        url = f"https://mail.zoho.{region}/api/accounts/{account_id}/messages/view"
+        params = {
+            "threadId": thread_id,
+            "limit": 50,
+        }
+
+        headers = {
+            "Authorization": f"Zoho-oauthtoken {token}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, headers=headers, params=params, timeout=10.0)
+            if r.status_code != 200:
+                return {
+                    "threadId": thread_id,
+                    "messages": [msg],
+                    "note": "Não foi possível obter a thread completa"
+                }
+
+            res = r.json()
+            data = res.get("data", [])
+            messages = []
+            for m in data:
+                received_time = m.get("receivedTime")
+                date_str = ""
+                if received_time:
+                    try:
+                        dt = datetime.fromtimestamp(int(received_time) / 1000)
+                        date_str = dt.isoformat()
+                    except:
+                        date_str = str(received_time)
+
+                content_html = m.get("content", "")
+                import re
+                content_text = re.sub(r"<[^>]+>", "", content_html).strip()
+                if not content_text and not content_html:
+                    content_text = m.get("summary", "")
+
+                messages.append({
+                    "id": str(m["messageId"]),
+                    "from": m.get("sender", m.get("fromAddress", "Desconhecido")),
+                    "subject": m.get("subject", "(Sem Assunto)"),
+                    "date": date_str,
+                    "content": content_text or content_html,
+                    "contentHtml": content_html,
+                })
+
+            messages.sort(key=lambda x: x.get("date", ""))
+            return {
+                "threadId": thread_id,
+                "messages": messages,
             }
 
     async def get_folders(self) -> list:

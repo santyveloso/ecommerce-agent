@@ -655,8 +655,11 @@ function Dashboard() {
   // ── Emails Tab ──────────────────────────
   const [emails, setEmails] = useState<any[]>([])
   const [emailsLoading, setEmailsLoading] = useState(true)
-  const [emailBody, setEmailBody] = useState('')
-  const [emailSending, setEmailSending] = useState(false)
+  const [selectedEmail, setSelectedEmail] = useState<any | null>(null)
+  const [emailDetailLoading, setEmailDetailLoading] = useState(false)
+  const [emailThread, setEmailThread] = useState<any[] | null>(null)
+  const [emailThreadLoading, setEmailThreadLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchEmails() {
@@ -673,22 +676,61 @@ function Dashboard() {
     if (activeTab === 'emails') fetchEmails()
   }, [activeTab])
 
-  const sendEmail = async () => {
-    setEmailSending(true)
+  const viewEmail = async (id: string) => {
+    setEmailDetailLoading(true)
+    setSelectedEmail(null)
+    setEmailThread(null)
     try {
-      const res = await fetch(`${API}/zoho/emails/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: emailBody }),
-      })
+      const res = await fetch(`${API}/zoho/emails/${id}`)
       if (res.ok) {
-        setEmailBody('')
-        // Refresh emails
-        const r = await fetch(`${API}/zoho/emails`)
-        if (r.ok) { const d = await r.json(); setEmails(d.emails || []) }
+        const data = await res.json()
+        setSelectedEmail(data)
       }
-    } catch (err) { console.error('Email send error', err) }
-    finally { setEmailSending(false) }
+    } catch (err) { console.error('Email detail error', err) }
+    finally { setEmailDetailLoading(false) }
+  }
+
+  const viewThread = async (id: string) => {
+    setEmailThreadLoading(true)
+    setEmailThread(null)
+    try {
+      const res = await fetch(`${API}/zoho/emails/${id}/thread`)
+      if (res.ok) {
+        const data = await res.json()
+        setEmailThread(data.messages || [])
+      }
+    } catch (err) { console.error('Email thread error', err) }
+    finally { setEmailThreadLoading(false) }
+  }
+
+  const ignoreEmail = async (id: string) => {
+    setActionLoading(id)
+    try {
+      await fetch(`${API}/zoho/emails/${id}/read`, { method: 'POST' })
+      setEmails(prev => prev.filter(e => e.id !== id))
+      if (selectedEmail?.id === id) setSelectedEmail(null)
+    } catch (err) { console.error('Ignore error', err) }
+    finally { setActionLoading(null) }
+  }
+
+  const archiveEmail = async (id: string) => {
+    setActionLoading(id)
+    try {
+      await fetch(`${API}/zoho/emails/${id}/archive`, { method: 'POST' })
+      setEmails(prev => prev.filter(e => e.id !== id))
+      if (selectedEmail?.id === id) setSelectedEmail(null)
+    } catch (err) { console.error('Archive error', err) }
+    finally { setActionLoading(null) }
+  }
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    const now = new Date()
+    const diff = now.getTime() - d.getTime()
+    if (diff < 86400000) return d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+    if (diff < 604800000) return d.toLocaleDateString('pt-PT', { weekday: 'short' })
+    return d.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' })
   }
 
   // ── Memory Tab ──────────────────────────
@@ -1230,50 +1272,141 @@ function Dashboard() {
         )}
 
         {activeTab === 'emails' && (
-          <div style={{ padding: '32px 40px' }}>
-            <div className="topbar">
+          <div style={{ padding: '32px 40px', maxWidth: 1000 }}>
+            <div className="topbar" style={{ marginBottom: 20 }}>
               <div>
                 <h1 className="page-title">Emails</h1>
-                <p className="greeting">Envie emails personalizados para os seus clientes</p>
+                <p className="greeting">{emails.length} email{emails.length !== 1 ? 's' : ''} por ler de clientes</p>
               </div>
-            </div>
-            <div className="section" style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Novo Email</h2>
-              <textarea
-                value={emailBody}
-                onChange={e => setEmailBody(e.target.value)}
-                placeholder="Escreva o corpo do email..."
-                style={{
-                  width: '100%', minHeight: 120, padding: 12, borderRadius: 8,
-                  border: '1px solid var(--surface-border)', background: 'var(--bg)',
-                  color: 'var(--text)', fontFamily: 'inherit', fontSize: 14, resize: 'vertical',
-                  outline: 'none',
-                }}
-              />
-              <button
-                className="onboarding-btn"
-                style={{ marginTop: 10, padding: '8px 20px', fontSize: 13 }}
-                onClick={sendEmail}
-                disabled={emailSending || !emailBody.trim()}
-              >
-                {emailSending ? 'A enviar...' : 'Enviar Email'}
+              <button className="refresh-btn" onClick={() => { setSelectedEmail(null); setEmailThread(null); }}>
+                {Icons.refresh} Atualizar
               </button>
             </div>
-            <div className="section">
-              <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Emails Enviados</h2>
-              {emailsLoading ? (
-                <div className="loading-screen"><div className="loader" /></div>
-              ) : emails.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhum email enviado ainda.</p>
-              ) : (
-                emails.map((em, i) => (
-                  <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid var(--surface-border)' }}>
-                    <p style={{ fontSize: 13, color: 'var(--text)' }}>{em.subject || em.body?.slice(0, 80) || '...'}</p>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{em.sent_at || em.date || ''}</span>
+
+            {/* Detail / Thread View */}
+            {(selectedEmail || emailThread) && (
+              <div className="section" style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                  <button className="quick-btn" onClick={() => { setSelectedEmail(null); setEmailThread(null); }}>
+                    {Icons.refresh} Voltar
+                  </button>
+                  {selectedEmail && !emailThread && (
+                    <button className="quick-btn" onClick={() => viewThread(selectedEmail.id)} disabled={emailThreadLoading}>
+                      {emailThreadLoading ? 'A carregar...' : 'Ver thread completa'}
+                    </button>
+                  )}
+                </div>
+
+                {emailThread ? (
+                  /* Thread View */
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>
+                      Thread — {emailThread.length} mensagen{emailThread.length !== 1 ? 'ns' : ''}
+                    </h3>
+                    {emailThread.map((msg, i) => (
+                      <div key={i} style={{
+                        padding: '16px 20px', background: 'var(--bg)',
+                        border: '1px solid var(--surface-border)', borderRadius: 12,
+                        marginBottom: 12,
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <span style={{ fontWeight: 600, fontSize: 13 }}>{msg.from || 'Desconhecido'}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatDate(msg.date)}</span>
+                        </div>
+                        {msg.subject && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{msg.subject}</div>}
+                        <div style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text)' }}>
+                          {msg.content || '(sem conteúdo)'}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))
-              )}
-            </div>
+                ) : selectedEmail ? (
+                  /* Detail View */
+                  <div>
+                    {emailDetailLoading ? (
+                      <div className="loading-screen"><div className="loader" /></div>
+                    ) : (
+                      <div>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>{selectedEmail.subject || '(Sem Assunto)'}</div>
+                          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-secondary)' }}>
+                            <span><strong>De:</strong> {selectedEmail.from}</span>
+                            <span><strong>Para:</strong> {selectedEmail.to || 'nós'}</span>
+                            <span><strong>Data:</strong> {formatDate(selectedEmail.date)}</span>
+                          </div>
+                        </div>
+                        <div style={{
+                          padding: 20, background: 'var(--bg)',
+                          border: '1px solid var(--surface-border)', borderRadius: 12,
+                          fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                        }}>
+                          {selectedEmail.content || '(sem conteúdo)'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                          <button className="quick-btn" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', borderColor: 'transparent' }}
+                            onClick={() => ignoreEmail(selectedEmail.id)} disabled={actionLoading === selectedEmail.id}>
+                            {actionLoading === selectedEmail.id ? '...' : 'Ignorar'}
+                          </button>
+                          <button className="quick-btn" onClick={() => archiveEmail(selectedEmail.id)} disabled={actionLoading === selectedEmail.id}>
+                            {actionLoading === selectedEmail.id ? '...' : 'Arquivar'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {/* Email List */}
+            {!selectedEmail && !emailThread && (
+              <div className="section">
+                {emailsLoading ? (
+                  <div className="loading-screen"><div className="loader" /></div>
+                ) : emails.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--accent-bg)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>{Icons.mail}</div>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhum email por ler. Tudo em dia!</p>
+                  </div>
+                ) : (
+                  emails.map((em, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '14px 16px', borderBottom: '1px solid var(--surface-border)',
+                      cursor: 'pointer', transition: 'background 0.1s',
+                    }}
+                      onClick={() => viewEmail(em.id)}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                          <span style={{ fontWeight: 600, fontSize: 13 }}>{em.from?.split('<')[0]?.trim() || em.from || 'Desconhecido'}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginLeft: 12 }}>{formatDate(em.date)}</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {em.subject || '(Sem Assunto)'}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {em.snippet || ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                        <button className="quick-btn" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--text-secondary)' }}
+                          onClick={() => ignoreEmail(em.id)} disabled={actionLoading === em.id}>
+                          Ignorar
+                        </button>
+                        <button className="quick-btn" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--text-secondary)' }}
+                          onClick={() => archiveEmail(em.id)} disabled={actionLoading === em.id}>
+                          Arquivar
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         )}
 

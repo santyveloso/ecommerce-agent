@@ -707,6 +707,17 @@ async def zoho_archive_email(message_id: str):
         raise HTTPException(502, f"Erro ao arquivar email: {e}")
 
 
+@app.get("/zoho/emails/{message_id}/thread")
+async def zoho_email_thread(message_id: str):
+    """Retorna a thread completa de conversa para um email."""
+    client = get_zoho()
+    try:
+        thread = await client.get_thread(message_id)
+        return thread
+    except Exception as e:
+        raise HTTPException(502, f"Erro ao obter thread do email: {e}")
+
+
 # ── Creative Studio Endpoints ─────────────────────────────────────────
 
 MOCK_ASSETS = {
