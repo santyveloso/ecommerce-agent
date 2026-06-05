@@ -122,12 +122,17 @@ class ShopifyClient:
                     node {
                         id name createdAt displayFinancialStatus displayFulfillmentStatus
                         totalPriceSet { shopMoney { amount currencyCode } }
-                        shippingAddress { name address1 city country }
-                        customer { id displayName email }
-                        lineItems(first: 10) {
-                            edges { node { title quantity sku } }
+                        shippingAddress { name address1 address2 city country zip }
+                        customer { id displayName email phone }
+                        lineItems(first: 20) {
+                            edges { node { title quantity sku variant { price } } }
                         }
-                        transactions { id kind status amountSet { shopMoney { amount } } }
+                        transactions {
+                            id kind status processedAt amountSet { shopMoney { amount currencyCode } }
+                            gateway
+                        }
+                        note
+                        cancelReason cancelledAt
                     }
                 }
             }
@@ -141,6 +146,41 @@ class ShopifyClient:
         if not edges:
             return None
         n = edges[0]["node"]
+
+        addr = n.get("shippingAddress")
+        customer = n.get("customer")
+
+        # Format address
+        address_parts = []
+        if addr:
+            if addr.get("name"):
+                address_parts.append(addr["name"])
+            parts = []
+            if addr.get("address1"):
+                parts.append(addr["address1"])
+            if addr.get("address2"):
+                parts.append(addr["address2"])
+            if parts:
+                address_parts.append(", ".join(parts))
+            city_line = ", ".join(filter(None, [
+                addr.get("city"),
+                addr.get("zip"),
+                addr.get("country"),
+            ]))
+            if city_line:
+                address_parts.append(city_line)
+
+        # Format transactions
+        tx_list = []
+        for tx in n.get("transactions", []):
+            tx_list.append({
+                "kind": tx.get("kind", ""),
+                "status": tx.get("status", ""),
+                "amount": tx.get("amountSet", {}).get("shopMoney", {}).get("amount", "0"),
+                "gateway": tx.get("gateway", ""),
+                "date": tx.get("processedAt", ""),
+            })
+
         return {
             "id": n["id"],
             "name": n["name"],
@@ -148,11 +188,21 @@ class ShopifyClient:
             "status": n["displayFinancialStatus"],
             "fulfillment": n["displayFulfillmentStatus"],
             "total": n["totalPriceSet"]["shopMoney"]["amount"],
-            "customer": n["customer"]["displayName"] if n.get("customer") else "N/A",
-            "email": n["customer"]["email"] if n.get("customer") else "",
-            "address": n["shippingAddress"]["name"] if n.get("shippingAddress") else "N/A",
+            "currency": n["totalPriceSet"]["shopMoney"]["currencyCode"],
+            "customer": customer["displayName"] if customer else "N/A",
+            "email": customer["email"] if customer else "",
+            "phone": customer.get("phone", "") if customer else "",
+            "address": " | ".join(address_parts) if address_parts else "N/A",
+            "note": n.get("note"),
+            "cancel_reason": n.get("cancelReason"),
+            "transactions": tx_list,
             "items": [
-                {"title": i["node"]["title"], "qty": i["node"]["quantity"]}
+                {
+                    "title": i["node"]["title"],
+                    "qty": i["node"]["quantity"],
+                    "sku": i["node"].get("sku", ""),
+                    "price": i["node"].get("variant", {}).get("price", ""),
+                }
                 for i in n["lineItems"]["edges"]
             ],
         }

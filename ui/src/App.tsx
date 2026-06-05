@@ -51,7 +51,7 @@ interface ChatSession {
 }
 
 const API = 'http://localhost:7777'
-const MODELS = ['gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4-20250514']
+const MODELS = ['gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4-20250514', 'claude-haiku-3-5']
 
 /* ── SVG Icons ──────────────────────────────── */
 const Icons = {
@@ -583,8 +583,7 @@ function Dashboard() {
     if (activeTab === 'studio') studioMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [studioMessages, activeTab])
 
-  const handleStudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const uploadFile = async (file: File) => {
     if (!file) return
     const formData = new FormData()
     formData.append('file', file)
@@ -602,6 +601,17 @@ function Dashboard() {
       setStudioUploads(prev => [data, ...prev])
     } catch { alert('Erro ao fazer upload da imagem.') }
     finally { setUploadsLoading(false) }
+  }
+
+  const handleStudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) uploadFile(file)
+    if (e.target) e.target.value = ''
+  }
+
+  const handleDropFile = (files: FileList | null) => {
+    const file = files?.[0]
+    if (file && file.type.startsWith('image/')) uploadFile(file)
   }
 
   const handleStudioSend = async (e: React.FormEvent) => {
@@ -651,6 +661,56 @@ function Dashboard() {
   useEffect(() => {
     if (activeTab === 'orders') fetchOrders()
   }, [activeTab])
+
+  // ── Order Detail Panel ──────────────────
+  const [selectedOrderName, setSelectedOrderName] = useState<string | null>(null)
+  const [orderDetail, setOrderDetail] = useState<any | null>(null)
+  const [orderDetailLoading, setOrderDetailLoading] = useState(false)
+
+  const fetchOrderDetail = useCallback(async (orderName: string) => {
+    setOrderDetailLoading(true)
+    setOrderDetail(null)
+    try {
+      const res = await fetch(`${API}/orders/${encodeURIComponent(orderName)}`)
+      if (res.ok) {
+        const data = await res.json()
+        setOrderDetail(data.order || data)
+      }
+    } catch (err) { console.error('Order detail error', err) }
+    finally { setOrderDetailLoading(false) }
+  }, [])
+
+  const closeOrderPanel = useCallback(() => {
+    setSelectedOrderName(null)
+    setOrderDetail(null)
+  }, [])
+
+  const talkToHermes = useCallback((order: any) => {
+    const id = uid()
+    const itemsText = (order.items || [])
+      .map((i: any) => `- ${i.qty}x ${i.title}${i.sku ? ` (${i.sku})` : ''}${i.price ? ` — ${i.price}${order.currency || '€'}` : ''}`)
+      .join('\n')
+    const contextMsg = `📋 **${order.name}**\nCliente: ${order.customer}\nEmail: ${order.email}\nTotal: ${order.total}${order.currency || '€'}\nEstado: ${order.status}\nEnvio: ${order.fulfillment}\nMorada: ${order.address}\n\n**Items:**\n${itemsText || '-'}\n\nPodes analisar esta encomenda para mim?`
+
+    const userMsg: Message = { role: 'user', content: contextMsg, timestamp: new Date().toISOString() }
+    const assistantMsg = { role: 'assistant' as const, content: '', timestamp: new Date().toISOString(), id: uid() } as any
+    const newSession: ChatSession = {
+      id,
+      title: `Order ${order.name}`,
+      messages: [userMsg, assistantMsg],
+      model: 'gpt-4o',
+    }
+    setSessions(prev => [newSession, ...prev])
+    setActiveSessionId(id)
+    setChatInputValue('')
+    setActiveTab('chat')
+    setStreamingContent('')
+    setIsStreamingDone(false)
+
+    // Start streaming response immediately
+    const conversationMessages = [{ role: 'user' as const, content: contextMsg }]
+    startStream(conversationMessages, 'gpt-4o')
+  }, [startStream])
 
   // ── Emails Tab ──────────────────────────
   const [emails, setEmails] = useState<any[]>([])
@@ -808,16 +868,37 @@ function Dashboard() {
 
   // ── Sidebar resize ──────────────────────
   const isResizing = useRef(false)
+  const sidebarRef = useRef<HTMLDivElement>(null)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const COLLAPSE_THRESHOLD = 80
+  const collapsedRef = useRef(sidebarCollapsed)
+  collapsedRef.current = sidebarCollapsed
+
   const handleResizeStart = useCallback((_e: React.MouseEvent) => {
     isResizing.current = true
+    setIsTransitioning(false)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }, [])
 
+  const toggleSidebar = useCallback(() => {
+    setIsTransitioning(true)
+    if (sidebarCollapsed) {
+      setSidebarCollapsed(false)
+      setSidebarWidth(p => Math.max(p, 140))
+    } else {
+      setSidebarCollapsed(true)
+    }
+    setTimeout(() => setIsTransitioning(false), 200)
+  }, [sidebarCollapsed])
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return
-      setSidebarWidth(Math.max(180, Math.min(400, e.clientX)))
+      const w = Math.max(56, Math.min(400, e.clientX))
+      setSidebarWidth(w)
+      if (w < COLLAPSE_THRESHOLD && !collapsedRef.current) setSidebarCollapsed(true)
+      if (w > COLLAPSE_THRESHOLD + 20 && collapsedRef.current) setSidebarCollapsed(false)
     }
     const handleMouseUp = () => {
       isResizing.current = false
@@ -832,7 +913,13 @@ function Dashboard() {
     }
   }, [])
 
-  // ── Studio @mention autocomplete ──────────
+  // ── Delete asset ────────────────────────
+  const deleteAsset = async (filename: string) => {
+    try {
+      const res = await fetch(`${API}/studio/upload/${filename}`, { method: 'DELETE' })
+      if (res.ok) setStudioUploads(prev => prev.filter(a => a.filename !== filename))
+    } catch (err) { console.error('Erro ao eliminar', err) }
+  }
   const [studioShowSuggestions, setStudioShowSuggestions] = useState(false)
   const [studioSuggestions, setStudioSuggestions] = useState<string[]>([])
   const [studioSuggestionTriggerIdx, setStudioSuggestionTriggerIdx] = useState(-1)
@@ -888,12 +975,12 @@ function Dashboard() {
   return (
     <div className="app">
       {/* ── Sidebar ─────────────────────── */}
-      <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarCollapsed ? 56 : sidebarWidth }}>
+      <div ref={sidebarRef} className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${isTransitioning ? 'transition' : ''}`} style={{ width: sidebarCollapsed ? 56 : sidebarWidth }}>
         <div className="sidebar-logo">
           <div className="logo-icon">EC</div>
           {!sidebarCollapsed && (
             <>
-              <span className="logo-text">Ecommerce Agent</span>
+              <span className="logo-text">chat</span>
               <span className="logo-badge">v2</span>
             </>
           )}
@@ -905,10 +992,10 @@ function Dashboard() {
             {Icons.grid}{!sidebarCollapsed && <span>Dashboard</span>}
           </a>
           <a className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
-            {Icons.chat}{!sidebarCollapsed && <span>Chat Agent</span>}
+            {Icons.chat}{!sidebarCollapsed && <span>chat</span>}
           </a>
           <a className={`nav-item ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>
-            {Icons.cart}{!sidebarCollapsed && <span>Pedidos</span>}
+            {Icons.cart}{!sidebarCollapsed && <span>ORDERS</span>}
           </a>
 
           <div className="nav-category">Marketing</div>
@@ -938,10 +1025,28 @@ function Dashboard() {
           </button>
         </div>
 
-        {/* Resize handle */}
-        {!sidebarCollapsed && (
-          <div className="resize-handle" onMouseDown={handleResizeStart} />
-        )}
+        {/* Collapse toggle button */}
+        <button
+          onClick={toggleSidebar}
+          title={sidebarCollapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
+          style={{
+            position: 'absolute', bottom: 12,
+            right: sidebarCollapsed ? '50%' : -14,
+            transform: sidebarCollapsed ? 'translateX(50%)' : 'none',
+            background: 'var(--surface)', border: '1px solid var(--surface-border)',
+            borderRadius: '50%', width: 24, height: 24,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: 'var(--text-muted)', zIndex: 11, padding: 0,
+          }}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+            style={{ transform: sidebarCollapsed ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+
+        {/* Resize handle — always visible */}
+        <div className="resize-handle" onMouseDown={handleResizeStart} title="Arrastar para redimensionar" />
       </div>
 
       {/* ── Main Content ────────────────── */}
@@ -1085,51 +1190,23 @@ function Dashboard() {
 
             {/* Chat Pane */}
             <div className="chat-pane">
-              {/* Chat header */}
-              <div className="chat-header" style={{
-                padding: '14px 24px',
-                borderBottom: '1px solid var(--surface-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontWeight: 600, fontSize: 15 }}>{activeSession?.title || 'Chat'}</span>
-                  <span style={{
-                    fontSize: 11,
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    background: 'var(--surface)',
-                    border: '1px solid var(--surface-border)',
-                    color: 'var(--text-muted)',
-                  }}>
-                    {activeSession?.model || 'gpt-4o'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* Chat header — minimal, Codex-style */}
+              <div className="chat-header">
+                <div className="chat-header-left">
+                  <span className="chat-header-title">{activeSession?.title || 'Chat'}</span>
                   {isStreaming && (
-                    <span style={{
-                      fontSize: 11,
-                      color: 'var(--electric)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}>
+                    <span className="chat-header-streaming">
                       <span className="streaming-dot" />
                       Streaming...
                     </span>
                   )}
                   {streamError && (
-                    <span style={{ fontSize: 11, color: 'var(--danger)' }}>{streamError}</span>
+                    <span className="chat-header-error">{streamError}</span>
                   )}
-                  <button
-                    className="refresh-btn"
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                    onClick={createNewSession}
-                  >
-                    {Icons.plus} Nova
-                  </button>
                 </div>
+                <button className="chat-header-new" onClick={createNewSession} title="Nova conversa">
+                  {Icons.plus}
+                </button>
               </div>
 
               {/* Messages */}
@@ -1179,10 +1256,15 @@ function Dashboard() {
           <div style={{ padding: '32px 40px' }}>
             <div className="topbar">
               <div>
-                <h1 className="page-title">Pedidos</h1>
+                <h1 className="page-title">ORDERS</h1>
                 <p className="greeting">Gerencie todos os pedidos da sua loja</p>
               </div>
-              <button className="refresh-btn" onClick={fetchOrders}>{Icons.refresh} Atualizar</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {selectedOrderName && (
+                  <button className="refresh-btn" onClick={closeOrderPanel}>{Icons.refresh} Fechar detalhes</button>
+                )}
+                <button className="refresh-btn" onClick={fetchOrders}>{Icons.refresh} Atualizar</button>
+              </div>
             </div>
 
             {/* Search + Filters */}
@@ -1219,53 +1301,196 @@ function Dashboard() {
             {ordersLoading ? (
               <div className="loading-screen"><div className="loader" /></div>
             ) : (
-              <div className="section">
-                {(() => {
-                  const wordMatch = (text: string, q: string) => {
-                    if (!text || !q) return false
-                    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                    return new RegExp(`(?<![\\p{L}])${escaped}`, 'iu').test(text)
-                  }
-                  const filtered = orders.filter(o => {
-                    const q = ordersSearch.toLowerCase().trim()
-                    if (q) {
-                      const nameOk = q.length >= 4 ? o.name?.toLowerCase().includes(q) : false
-                      const custOk = wordMatch(o.customer, q)
-                      const itemsOk = o.items?.some((i: any) => wordMatch(i.title, q))
-                      if (!(nameOk || custOk || itemsOk)) return false
-                    }
-                    if (payFilter && o.financial_status !== payFilter) return false
-                    if (fulFilter && o.fulfillment_status !== fulFilter) return false
-                    if (dateFrom && o.created_at && o.created_at < dateFrom) return false
-                    if (dateTo && o.created_at) {
-                      const end = new Date(dateTo)
-                      end.setDate(end.getDate() + 1)
-                      if (new Date(o.created_at) > end) return false
-                    }
-                    return true
-                  })
-                  return (
-                    <table className="table">
-                      <thead><tr><th>Pedido</th><th>Cliente</th><th>Items</th><th>Total</th><th>Pagamento</th><th>Envio</th><th>Data</th></tr></thead>
-                      <tbody>
-                        {filtered.map((o, i) => (
-                          <tr key={i}>
-                            <td><span className="order-name">{o.name}</span></td>
-                            <td>{o.customer}</td>
-                            <td style={{ fontSize: 12, color: 'var(--text-secondary)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {o.items?.map((i: any) => `${i.qty}x ${i.title}`).join(', ') || '-'}
-                            </td>
-                            <td>{parseFloat(o.total).toFixed(2)}€</td>
-                            <td><span className={`status-tag ${(o.financial_status || '').toLowerCase()}`}>{o.financial_status || '-'}</span></td>
-                            <td><span className={`status-tag ${(o.fulfillment_status || '').toLowerCase()}`}>{o.fulfillment_status || '-'}</span></td>
-                            <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{o.created_at ? new Date(o.created_at).toLocaleDateString('pt-PT') : '-'}</td>
-                          </tr>
-                        ))}
-                        {filtered.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>Nenhum pedido encontrado com esses filtros</td></tr>}
-                      </tbody>
-                    </table>
-                  )
-                })()}
+              <div className="orders-layout">
+                {/* ── Table Section ── */}
+                <div className="orders-table-section">
+                  <div className="section">
+                    {(() => {
+                      const wordMatch = (text: string, q: string) => {
+                        if (!text || !q) return false
+                        const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                        return new RegExp(`(?<![\\p{L}])${escaped}`, 'iu').test(text)
+                      }
+                      const filtered = orders.filter(o => {
+                        const q = ordersSearch.toLowerCase().trim()
+                        if (q) {
+                          const nameOk = q.length >= 4 ? o.name?.toLowerCase().includes(q) : false
+                          const custOk = wordMatch(o.customer, q)
+                          const itemsOk = o.items?.some((i: any) => wordMatch(i.title, q))
+                          if (!(nameOk || custOk || itemsOk)) return false
+                        }
+                        if (payFilter && o.financial_status !== payFilter) return false
+                        if (fulFilter && o.fulfillment_status !== fulFilter) return false
+                        if (dateFrom && o.created_at && o.created_at < dateFrom) return false
+                        if (dateTo && o.created_at) {
+                          const end = new Date(dateTo)
+                          end.setDate(end.getDate() + 1)
+                          if (new Date(o.created_at) > end) return false
+                        }
+                        return true
+                      })
+                      return (
+                        <table className="table">
+                          <thead><tr><th>Pedido</th><th>Cliente</th><th>Items</th><th>Total</th><th>Pagamento</th><th>Envio</th><th>Data</th></tr></thead>
+                          <tbody>
+                            {filtered.map((o, i) => (
+                              <tr key={i} onClick={() => {
+                                setSelectedOrderName(o.name)
+                                fetchOrderDetail(o.name)
+                              }}
+                                style={{ background: selectedOrderName === o.name ? 'var(--accent-bg)' : undefined }}
+                              >
+                                <td><span className="order-name">{o.name}</span></td>
+                                <td>{o.customer}</td>
+                                <td style={{ fontSize: 12, color: 'var(--text-secondary)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {o.items?.map((i: any) => `${i.qty}x ${i.title}`).join(', ') || '-'}
+                                </td>
+                                <td>{parseFloat(o.total).toFixed(2)}€</td>
+                                <td><span className={`status-tag ${(o.financial_status || '').toLowerCase()}`}>{o.financial_status || '-'}</span></td>
+                                <td><span className={`status-tag ${(o.fulfillment_status || '').toLowerCase()}`}>{o.fulfillment_status || '-'}</span></td>
+                                <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{o.created_at ? new Date(o.created_at).toLocaleDateString('pt-PT') : '-'}</td>
+                              </tr>
+                            ))}
+                            {filtered.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>Nenhum pedido encontrado com esses filtros</td></tr>}
+                          </tbody>
+                        </table>
+                      )
+                    })()}
+                  </div>
+                </div>
+
+                {/* ── Order Detail Panel ── */}
+                {selectedOrderName && (
+                  <div className="order-detail-panel">
+                    <div className="order-detail-header">
+                      <h3>{orderDetail?.name || selectedOrderName}</h3>
+                      <button className="quick-btn" onClick={closeOrderPanel}
+                        style={{ width: 'auto', padding: '6px 10px', fontSize: 11 }}>
+                        ✕
+                      </button>
+                    </div>
+
+                    {orderDetailLoading ? (
+                      <div className="loading-screen" style={{ height: 200 }}><div className="loader" /></div>
+                    ) : orderDetail ? (
+                      <>
+                        {/* Status */}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                          <span className={`status-tag ${(orderDetail.status || '').toLowerCase()}`}>
+                            {orderDetail.status || '-'}
+                          </span>
+                          <span className={`status-tag ${(orderDetail.fulfillment || '').toLowerCase()}`}>
+                            {orderDetail.fulfillment || '-'}
+                          </span>
+                        </div>
+
+                        {/* Cliente */}
+                        <div className="order-detail-section">
+                          <div className="order-detail-label">Cliente</div>
+                          <div className="order-detail-value">{orderDetail.customer}</div>
+                          {orderDetail.email && (
+                            <div className="order-detail-value" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                              {orderDetail.email}
+                            </div>
+                          )}
+                          {orderDetail.phone && (
+                            <div className="order-detail-value" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                              {orderDetail.phone}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Total */}
+                        <div className="order-detail-section">
+                          <div className="order-detail-label">Total</div>
+                          <div className="order-detail-value" style={{ fontSize: 20, fontWeight: 700 }}>
+                            {parseFloat(orderDetail.total).toFixed(2)}{orderDetail.currency || '€'}
+                          </div>
+                        </div>
+
+                        {/* Data */}
+                        <div className="order-detail-section">
+                          <div className="order-detail-label">Data</div>
+                          <div className="order-detail-value">
+                            {orderDetail.created_at ? new Date(orderDetail.created_at).toLocaleString('pt-PT') : '-'}
+                          </div>
+                        </div>
+
+                        {/* Morada */}
+                        {orderDetail.address && orderDetail.address !== 'N/A' && (
+                          <div className="order-detail-section">
+                            <div className="order-detail-label">Morada de Envio</div>
+                            <div className="order-detail-value">{orderDetail.address}</div>
+                          </div>
+                        )}
+
+                        {/* Items */}
+                        <div className="order-detail-section">
+                          <div className="order-detail-label">Items ({orderDetail.items?.length || 0})</div>
+                          {(orderDetail.items || []).map((item: any, i: number) => (
+                            <div key={i} className="order-detail-item">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 500, fontSize: 13 }}>{item.title}</span>
+                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                  {item.price ? `${item.price}${orderDetail.currency || '€'}` : ''}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                                Qty: {item.qty}{item.sku ? ` | SKU: ${item.sku}` : ''}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Note */}
+                        {orderDetail.note && (
+                          <div className="order-detail-section">
+                            <div className="order-detail-label">Nota</div>
+                            <div className="order-detail-value" style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+                              {orderDetail.note}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Cancel reason */}
+                        {orderDetail.cancel_reason && (
+                          <div className="order-detail-section">
+                            <div className="order-detail-label">Motivo de Cancelamento</div>
+                            <div className="order-detail-value" style={{ color: 'var(--danger)' }}>
+                              {orderDetail.cancel_reason}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Transactions */} 
+                        {orderDetail.transactions && orderDetail.transactions.length > 0 && (
+                          <div className="order-detail-section">
+                            <div className="order-detail-label">Transacoes</div>
+                            {orderDetail.transactions.slice(0, 3).map((tx: any, i: number) => (
+                              <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                {tx.kind} — {tx.amount}{orderDetail.currency || '€'}
+                                {tx.gateway ? ` (${tx.gateway})` : ''}
+                                {tx.date ? ` — ${new Date(tx.date).toLocaleDateString('pt-PT')}` : ''}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* ── Falar com Hermes ── */}
+                        <button className="order-hermes-btn" onClick={() => talkToHermes(orderDetail)}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                          </svg>
+                          Falar com Hermes Agent
+                        </button>
+                      </>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                        Nao foi possivel carregar os detalhes da encomenda.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1412,43 +1637,7 @@ function Dashboard() {
 
         {activeTab === 'studio' && (
           <div style={{ display: 'flex', height: '100vh' }}>
-            {/* Upload panel */}
-            <div style={{
-              width: 280, borderRight: '1px solid var(--surface-border)',
-              background: 'var(--bg-sidebar)', padding: 20, display: 'flex', flexDirection: 'column',
-            }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Assets</h3>
-              <label style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                padding: '12px 16px', border: '2px dashed var(--surface-border)', borderRadius: 10,
-                cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, marginBottom: 16,
-                transition: 'all 0.15s',
-              }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-                Upload Image
-                <input type="file" accept="image/*" onChange={handleStudioUpload} style={{ display: 'none' }} />
-              </label>
-              {duplicateAlert && <div className="onboarding-error" style={{ marginBottom: 10, fontSize: 12 }}>{duplicateAlert}</div>}
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                {uploadsLoading && <div className="loading-screen" style={{ height: 'auto' }}><div className="loader" /></div>}
-                {studioUploads.map(asset => (
-                  <div key={asset.filename} style={{
-                    padding: 8, borderRadius: 8, marginBottom: 8,
-                    border: '1px solid var(--surface-border)', background: 'var(--surface)',
-                  }}>
-                    <img src={asset.url} alt={asset.name} style={{ width: '100%', borderRadius: 6, marginBottom: 6 }} />
-                    <p style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, marginBottom: 4 }}>{asset.name}</p>
-                    <button onClick={() => deleteAsset(asset.filename)} style={{
-                      fontSize: 11, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer',
-                    }}>Eliminar</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Studio chat */}
+            {/* Studio chat — LEFT */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
               <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
                 {studioMessages.map((msg, i) => (
@@ -1525,6 +1714,125 @@ function Dashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Assets panel — RIGHT */}
+            <div style={{
+              width: 300, borderLeft: '1px solid var(--surface-border)',
+              background: 'var(--bg-sidebar)', display: 'flex', flexDirection: 'column',
+              flexShrink: 0,
+            }}>
+              <div style={{ padding: '16px 16px 0' }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Assets</h3>
+              </div>
+
+              {/* Drop zone */}
+              <div style={{ padding: '0 16px 12px' }}>
+                <div
+                  onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setIsDragOver(false); handleDropFile(e.dataTransfer.files); }}
+                  onClick={() => studioFileInputRef.current?.click()}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    padding: '24px 16px', border: `2px dashed ${isDragOver ? 'var(--accent)' : 'var(--surface-border)'}`,
+                    borderRadius: 10, cursor: 'pointer',
+                    color: isDragOver ? 'var(--accent)' : 'var(--text-muted)',
+                    fontSize: 13, transition: 'all 0.15s',
+                    background: isDragOver ? 'var(--accent-bg)' : 'transparent',
+                  }}
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  {isDragOver ? (
+                    <span style={{ fontWeight: 500 }}>Largar aqui</span>
+                  ) : (
+                    <>
+                      <span>Clique para upload</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ou arraste ficheiros aqui</span>
+                    </>
+                  )}
+                  <input ref={studioFileInputRef} type="file" accept="image/*" onChange={handleStudioUpload} style={{ display: 'none' }} />
+                </div>
+              </div>
+
+              {duplicateAlert && (
+                <div style={{ padding: '0 16px', marginBottom: 8 }}>
+                  <div className="onboarding-error" style={{ fontSize: 12 }}>{duplicateAlert}</div>
+                </div>
+              )}
+
+              {/* Gallery label */}
+              <div style={{ padding: '0 16px', marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  Galeria ({studioUploads.length})
+                </span>
+              </div>
+
+              {/* Gallery grid */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
+                {uploadsLoading && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
+                    <div className="loader" />
+                  </div>
+                )}
+                {!uploadsLoading && studioUploads.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: 13 }}>
+                    Nenhum asset ainda
+                  </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {studioUploads.map(asset => (
+                    <div key={asset.filename} style={{
+                      position: 'relative', borderRadius: 8, overflow: 'hidden',
+                      border: '1px solid var(--surface-border)',
+                      transition: 'border-color 0.15s',
+                    }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--surface-border)' }}
+                    >
+                      <img
+                        src={asset.url} alt={asset.name}
+                        style={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }}
+                        onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, filename: asset.filename }); }}
+                      />
+                      <p style={{
+                        fontSize: 11, padding: '4px 6px', color: 'var(--text)', fontWeight: 500,
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>{asset.name}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right-click context menu */}
+            {contextMenu && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setContextMenu(null)} />
+                <div style={{
+                  position: 'fixed', top: contextMenu.y, left: contextMenu.x,
+                  background: 'var(--surface)', border: '1px solid var(--surface-border)',
+                  borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.25)', zIndex: 999,
+                  minWidth: 160, padding: 4, overflow: 'hidden',
+                }}>
+                  <button onClick={() => { deleteAsset(contextMenu.filename); setContextMenu(null); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px',
+                      fontSize: 13, background: 'none', border: 'none', color: 'var(--danger)',
+                      cursor: 'pointer', borderRadius: 6, transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    Eliminar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
