@@ -4,6 +4,7 @@ interface Folder {
   id: string
   name: string
   expanded: boolean
+  color?: string
 }
 
 interface ChatSession {
@@ -25,7 +26,9 @@ interface SessionSidebarProps {
   onDeleteSession: (id: string) => void
   onRenameSession: (id: string, name: string) => void
   onTogglePin: (id: string) => void
-  onNewFolder: (name: string) => void
+  onNewFolder: (name: string, color?: string) => void
+  onRenameFolder: (id: string, name: string) => void
+  onSetFolderColor: (folderId: string, color: string) => void
   onDeleteFolder: (id: string) => void
   onToggleFolder: (id: string) => void
   onMoveSession: (sessionId: string, folderId: string | null) => void
@@ -43,7 +46,9 @@ export default function SessionSidebar({
   onRenameSession,
   onTogglePin,
   onNewFolder,
+  onRenameFolder,
   onDeleteFolder,
+  onSetFolderColor,
   onToggleFolder,
   onMoveSession,
 }: SessionSidebarProps) {
@@ -56,9 +61,19 @@ export default function SessionSidebar({
   const [dropTargetRoot, _setDropTargetRoot] = useState(false)
   const [showNewFolderModal, setShowNewFolderModal] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+  const [newFolderColor, setNewFolderColor] = useState('var(--accent)')
   const [showDeleteFolderModal, setShowDeleteFolderModal] = useState(false)
   const [folderToDeleteId, setFolderToDeleteId] = useState<string | null>(null)
   const [folderToDeleteName, setFolderToDeleteName] = useState('')
+
+  const FOLDER_COLORS = [
+    { name: 'Blue', value: 'var(--accent)' },
+    { name: 'Purple', value: 'var(--chart-purple)' },
+    { name: 'Green', value: 'var(--success)' },
+    { name: 'Orange', value: 'var(--warning)' },
+    { name: 'Red', value: 'var(--danger)' },
+    { name: 'Cyan', value: 'var(--chart-cyan)' },
+  ]
 
   const renameRef = useRef<HTMLInputElement>(null)
   const folderRenameRef = useRef<HTMLInputElement>(null)
@@ -83,7 +98,7 @@ export default function SessionSidebar({
     ? sessions.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : sessions
 
-  // Group sessions: pinned first, then by folder
+  // Group sessions: folders first, then pinned
   const pinnedSessions = filteredSessions.filter(s => s.pinned)
   const unfiledSessions = filteredSessions.filter(s => !s.folderId && !s.pinned)
   const sessionsInFolder = (folderId: string) =>
@@ -134,16 +149,18 @@ export default function SessionSidebar({
   }
 
   const commitRenameFolder = () => {
-    // Rename is handled inline; folders don't have a rename API in this version
-    // but we can add one later
+    if (editingFolderId && editingFolderName.trim()) {
+      onRenameFolder(editingFolderId, editingFolderName.trim())
+    }
     setEditingFolderId(null)
   }
 
   // New folder
   const handleCreateFolder = () => {
     if (newFolderName.trim()) {
-      onNewFolder(newFolderName.trim())
+      onNewFolder(newFolderName.trim(), newFolderColor)
       setNewFolderName('')
+      setNewFolderColor('var(--accent)')
       setShowNewFolderModal(false)
     }
   }
@@ -192,36 +209,7 @@ export default function SessionSidebar({
 
       {/* Scrollable session list */}
       <div className="session-list">
-        {/* Pinned sessions */}
-        {pinnedSessions.length > 0 && (
-          <div className="session-group">
-            <div className="session-group-label">Pinned</div>
-            {pinnedSessions.map(session => (
-              <SessionItem
-                key={session.id}
-                session={session}
-                isActive={session.id === activeSessionId}
-                isEditing={editingSessionId === session.id}
-                editTitle={editingTitle}
-                onEditTitleChange={setEditingTitle}
-                onSelect={() => onSelectSession(session.id)}
-                onStartRename={() => startRenameSession(session)}
-                onCommitRename={commitRenameSession}
-                onRenameKeyDown={(e) => {
-                  if (e.key === 'Enter') commitRenameSession()
-                  if (e.key === 'Escape') setEditingSessionId(null)
-                }}
-                onDelete={() => onDeleteSession(session.id)}
-                onTogglePin={() => onTogglePin(session.id)}
-                onDragStart={() => handleDragStart(session.id)}
-                onDragEnd={handleDragEnd}
-                renameRef={editingSessionId === session.id ? renameRef : undefined}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Folders */}
+        {/* Folders — always on top */}
         {folders.map(folder => (
           <div key={folder.id} className="folder-group">
             <div
@@ -240,7 +228,7 @@ export default function SessionSidebar({
               >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={folder.color || 'currentColor'} strokeWidth="1.5">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               </svg>
               {editingFolderId === folder.id ? (
@@ -265,6 +253,29 @@ export default function SessionSidebar({
                 </span>
               )}
               <div className="folder-actions">
+                <button
+                  className="folder-action-btn"
+                  onClick={e => {
+                    e.stopPropagation()
+                    const colors = FOLDER_COLORS.map(c => c.value)
+                    const curIdx = folder.color ? colors.indexOf(folder.color) : -1
+                    const nextIdx = (curIdx + 1) % colors.length
+                    onSetFolderColor(folder.id, colors[nextIdx])
+                  }}
+                  title="Change color"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="5" />
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" />
+                    <line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                  </svg>
+                </button>
                 <button
                   className="folder-action-btn"
                   onClick={e => {
@@ -315,6 +326,35 @@ export default function SessionSidebar({
             )}
           </div>
         ))}
+
+        {/* Pinned sessions */}
+        {pinnedSessions.length > 0 && (
+          <div className="session-group">
+            <div className="session-group-label">Pinned</div>
+            {pinnedSessions.map(session => (
+              <SessionItem
+                key={session.id}
+                session={session}
+                isActive={session.id === activeSessionId}
+                isEditing={editingSessionId === session.id}
+                editTitle={editingTitle}
+                onEditTitleChange={setEditingTitle}
+                onSelect={() => onSelectSession(session.id)}
+                onStartRename={() => startRenameSession(session)}
+                onCommitRename={commitRenameSession}
+                onRenameKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRenameSession()
+                  if (e.key === 'Escape') setEditingSessionId(null)
+                }}
+                onDelete={() => onDeleteSession(session.id)}
+                onTogglePin={() => onTogglePin(session.id)}
+                onDragStart={() => handleDragStart(session.id)}
+                onDragEnd={handleDragEnd}
+                renameRef={editingSessionId === session.id ? renameRef : undefined}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Unfiled sessions */}
         {unfiledSessions.length > 0 && (
@@ -374,8 +414,22 @@ export default function SessionSidebar({
               placeholder="Folder name"
               autoFocus
             />
+            <div className="folder-color-picker">
+              <label className="folder-color-label">Color</label>
+              <div className="folder-color-swatches">
+                {FOLDER_COLORS.map(c => (
+                  <button
+                    key={c.value}
+                    className={`folder-color-swatch ${newFolderColor === c.value ? 'active' : ''}`}
+                    style={{ background: c.value }}
+                    onClick={() => setNewFolderColor(c.value)}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            </div>
             <div className="modal-actions">
-              <button className="modal-btn cancel" onClick={() => { setShowNewFolderModal(false); setNewFolderName('') }}>Cancel</button>
+              <button className="modal-btn cancel" onClick={() => { setShowNewFolderModal(false); setNewFolderName(''); setNewFolderColor('var(--accent)') }}>Cancel</button>
               <button className="modal-btn primary" onClick={handleCreateFolder} disabled={!newFolderName.trim()}>Create</button>
             </div>
           </div>

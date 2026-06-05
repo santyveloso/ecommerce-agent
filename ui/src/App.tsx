@@ -4,6 +4,8 @@ import ChatInput from './ChatInput'
 import ChatMessages from './ChatMessages'
 import SessionSidebar from './SessionSidebar'
 import { useChatStream } from './useChatStream'
+import RevenueChart from './RevenueChart'
+import './revenue-chart.css'
 import './dashboard.css'
 import './chat.css'
 
@@ -178,7 +180,7 @@ function Dashboard() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
   const [activeTab, setActiveTab] = useState('dashboard')
-  const [sidebarCollapsed, _setSidebarCollapseFn] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(200)
   const [availableModels, setAvailableModels] = useState<string[]>(FALLBACK_MODELS)
   const [gatewayActiveModel, setGatewayActiveModel] = useState<string>('deepseek-v4-flash')
@@ -401,6 +403,7 @@ function Dashboard() {
   })
   const [sessionSearchQuery, setSessionSearchQuery] = useState('')
   const [chatInputValue, setChatInputValue] = useState('')
+  const [chatEditingTitle, setChatEditingTitle] = useState<string | null>(null)
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
 
   // @mention state for chat
@@ -989,6 +992,29 @@ function Dashboard() {
     } catch (err) { console.error('Memory add error', err) }
   }
 
+  // ── Links Tab ───────────────────────────
+  const [links, setLinks] = useState<{id: string; name: string; url: string}[]>(() => {
+    try {
+      const saved = localStorage.getItem('ec_links')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    return []
+  })
+  const [newLinkName, setNewLinkName] = useState('')
+  const [newLinkUrl, setNewLinkUrl] = useState('')
+  useEffect(() => { localStorage.setItem('ec_links', JSON.stringify(links)) }, [links])
+
+  const addLink = () => {
+    if (!newLinkName.trim() || !newLinkUrl.trim()) return
+    setLinks(prev => [...prev, { id: uid(), name: newLinkName.trim(), url: newLinkUrl.trim() }])
+    setNewLinkName('')
+    setNewLinkUrl('')
+  }
+
+  const deleteLink = (id: string) => {
+    setLinks(prev => prev.filter(l => l.id !== id))
+  }
+
   // ── Automations Tab ─────────────────────
   const [automations, setAutomations] = useState<any[]>([])
   const [automationsLoading, setAutomationsLoading] = useState(false)
@@ -1167,6 +1193,9 @@ function Dashboard() {
           <a className={`nav-item ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
             {Icons.memory}{!sidebarCollapsed && <span>Memoria</span>}
           </a>
+          <a className={`nav-item ${activeTab === 'links' ? 'active' : ''}`} onClick={() => setActiveTab('links')}>
+            {Icons.link}{!sidebarCollapsed && <span>Links</span>}
+          </a>
         </div>
 
         <div className="sidebar-footer">
@@ -1313,19 +1342,7 @@ function Dashboard() {
                   </div>
                 )}
 
-                <div className="charts">
-                  <div className="chart-card">
-                    <div className="card-header">
-                      <h3>Vendas (7 dias)</h3>
-                      <a className="more-link" href="#">Ver tudo</a>
-                    </div>
-                    <div className="sparkline">
-                      {[40, 65, 50, 80, 55, 90, 70].map((h, i) => (
-                        <div key={i} className={`spark-bar ${i === 5 ? 'highlight' : ''}`} style={{ height: `${h}%` }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <RevenueChart />
 
                 <div className="sections">
                   <div className="section">
@@ -1404,7 +1421,33 @@ function Dashboard() {
               {/* Chat header — minimal, Codex-style */}
               <div className="chat-header">
                 <div className="chat-header-left">
-                  <span className="chat-header-title">{activeSession?.title || 'Chat'}</span>
+                  {chatEditingTitle ? (
+                    <input
+                      className="chat-header-title-input"
+                      value={chatEditingTitle}
+                      onChange={e => setChatEditingTitle(e.target.value)}
+                      onBlur={() => {
+                        if (chatEditingTitle.trim() && activeSession) {
+                          renameSession(activeSession.id, chatEditingTitle.trim())
+                        }
+                        setChatEditingTitle(null)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          (e.target as HTMLInputElement).blur()
+                        }
+                        if (e.key === 'Escape') setChatEditingTitle(null)
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <span
+                      className="chat-header-title"
+                      onClick={() => activeSession && setChatEditingTitle(activeSession.title)}
+                    >
+                      {activeSession?.title || 'Chat'}
+                    </span>
+                  )}
                   {isStreaming && (
                     <span className="chat-header-streaming">
                       <span className="streaming-dot" />
@@ -1431,6 +1474,8 @@ function Dashboard() {
                 onRegenerate={handleRegenerate}
                 onDelete={handleDeleteMessage}
                 onNewChat={createNewSession}
+                emptyStateTitle={`What should we work on today${dashboardData?.storeName ? ` in ${dashboardData.storeName}` : ''}?`}
+                emptyStateSubtitle=""
               />
 
               {/* Input */}
@@ -2123,6 +2168,101 @@ function Dashboard() {
                     <p style={{ fontSize: 13, color: 'var(--text)' }}>{entry.content || entry.text || JSON.stringify(entry)}</p>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'links' && (
+          <div style={{ padding: '32px 40px', maxWidth: 800 }}>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">Links</h1>
+                <p className="greeting">Atalhos e links que usas frequentemente</p>
+              </div>
+            </div>
+
+            <div className="section" style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Adicionar Link</h2>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <input
+                  value={newLinkName}
+                  onChange={e => setNewLinkName(e.target.value)}
+                  placeholder="Nome (ex: Lana Dashboard)"
+                  style={{
+                    flex: '1 1 200px', padding: '10px 14px',
+                    border: '1px solid var(--surface-border)', borderRadius: 8,
+                    background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
+                    fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+                <input
+                  value={newLinkUrl}
+                  onChange={e => setNewLinkUrl(e.target.value)}
+                  placeholder="URL (ex: https://lanazagreb.com/admin)"
+                  style={{
+                    flex: '2 1 300px', padding: '10px 14px',
+                    border: '1px solid var(--surface-border)', borderRadius: 8,
+                    background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
+                    fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+                <button className="onboarding-btn" style={{ padding: '8px 20px', fontSize: 13 }}
+                  onClick={addLink} disabled={!newLinkName.trim() || !newLinkUrl.trim()}>
+                  Adicionar
+                </button>
+              </div>
+            </div>
+
+            <div className="section">
+              {links.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 12,
+                    background: 'var(--accent-bg)', color: 'var(--accent)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    margin: '0 auto 12px',
+                  }}>{Icons.link}</div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhum link guardado.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {links.map(link => (
+                    <div key={link.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 16px',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--surface-border)',
+                      borderRadius: 10,
+                      transition: 'border-color 0.15s',
+                    }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 8,
+                        background: 'var(--accent-bg)', color: 'var(--accent)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>{Icons.link}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{link.name}</div>
+                        <div style={{
+                          fontSize: 12, color: 'var(--text-secondary)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>{link.url}</div>
+                      </div>
+                      <a href={link.url} target="_blank" rel="noopener noreferrer"
+                        className="quick-btn" style={{ fontSize: 12, padding: '6px 12px', textDecoration: 'none' }}>
+                        Abrir
+                      </a>
+                      <button className="quick-btn" style={{
+                        fontSize: 12, padding: '6px 10px',
+                        color: 'var(--danger)', background: 'var(--danger-bg)',
+                        borderColor: 'transparent',
+                      }} onClick={() => deleteLink(link.id)}>
+                        Eliminar
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>

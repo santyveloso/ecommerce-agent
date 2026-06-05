@@ -52,7 +52,7 @@ export default function ChatMessages({
   onReject,
   onNewChat,
   emptyStateTitle = 'What can I help with?',
-  emptyStateSubtitle = 'Ask about orders, products, customers, or anything about your store.',
+  emptyStateSubtitle = '',
 }: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -90,36 +90,7 @@ export default function ChatMessages({
   if (isEmpty) {
     return (
       <div className="chat-messages-empty">
-        <div className="empty-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        </div>
-        <h3>{emptyStateTitle}</h3>
-        <p>{emptyStateSubtitle}</p>
-        {onNewChat && (
-          <div className="empty-suggestions">
-            <button className="suggestion-chip" onClick={() => onNewChat()}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              New conversation
-            </button>
-          </div>
-        )}
-        <div className="quick-prompts">
-          <p className="quick-prompts-label">Try asking:</p>
-          <button className="quick-prompt-btn" onClick={() => onNewChat?.()}>
-            "What were my sales today?"
-          </button>
-          <button className="quick-prompt-btn" onClick={() => onNewChat?.()}>
-            "Show me low stock products"
-          </button>
-          <button className="quick-prompt-btn" onClick={() => onNewChat?.()}>
-            "Summarize pending orders"
-          </button>
-          <button className="quick-prompt-btn" onClick={() => onNewChat?.()}>
-            "Help me write a product description"
-          </button>
-        </div>
+        <h2 className="empty-state-title">{emptyStateTitle}</h2>
       </div>
     )
   }

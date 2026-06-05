@@ -42,7 +42,7 @@ class GatewayBridge:
         self._available = False
         return None
 
-    async def chat(self, message: str, context: Optional[dict] = None, history: Optional[list] = None) -> str:
+    async def chat(self, message: str, context: Optional[dict] = None, history: Optional[list] = None, model: Optional[str] = None) -> str:
         """Envia mensagem para o gateway e retorna resposta."""
         if not self._available:
             return "[Gateway offline] O Hermes Gateway não está acessível. Tenta outra vez quando ele estiver online."
@@ -65,8 +65,10 @@ class GatewayBridge:
             messages.extend(history)
         messages.append({"role": "user", "content": message})
 
+        active_model = model or self.selected_model
+
         body = {
-            "model": self.selected_model,
+            "model": active_model,
             "messages": messages,
             "max_tokens": 1024,
         }
@@ -88,6 +90,7 @@ class GatewayBridge:
         message: str,
         context: Optional[dict] = None,
         history: Optional[list] = None,
+        model: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Envia mensagem para o gateway com streaming, yield tokens."""
         if not self._available:
@@ -112,8 +115,10 @@ class GatewayBridge:
             messages.extend(history)
         messages.append({"role": "user", "content": message})
 
+        active_model = model or self.selected_model
+
         body = {
-            "model": self.selected_model,
+            "model": active_model,
             "messages": messages,
             "max_tokens": 1024,
             "stream": True,

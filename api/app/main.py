@@ -31,9 +31,11 @@ class MessageHistory(BaseModel):
     content: str
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = ""
+    messages: Optional[List[dict]] = None
     context: Optional[dict] = None
     history: Optional[List[MessageHistory]] = None
+    model: Optional[str] = None
 
 class ChatResponse(BaseModel):
     reply: str
@@ -220,8 +222,14 @@ async def chat(req: ChatRequest):
         )
 
     # ── Via gateway ─────────────────────────────────────────────
-    history_dicts = [m.model_dump() for m in req.history] if req.history else None
-    reply = await gateway.chat(req.message, req.context, history_dicts)
+    if req.messages:
+        user_msg = req.messages[-1]["content"] if req.messages else ""
+        history_dicts = req.messages[:-1] if len(req.messages) > 1 else None
+    else:
+        user_msg = req.message
+        history_dicts = [m.model_dump() for m in req.history] if req.history else None
+    model = req.model or gateway.selected_model
+    reply = await gateway.chat(user_msg, req.context, history_dicts, model=model)
     return ChatResponse(reply=reply)
 
 
@@ -230,8 +238,14 @@ async def chat_stream(req: ChatRequest):
     """Streaming chat endpoint — returns SSE text/event-stream."""
 
     async def event_generator():
-        # For non-gateway commands, simulate streaming
-        msg = req.message.lower().strip()
+        # Normalize input: support both `messages[]` array and legacy `message`+`history`
+        if req.messages:
+            user_msg = req.messages[-1]["content"] if req.messages else ""
+            history_dicts = req.messages[:-1] if len(req.messages) > 1 else None
+        else:
+            user_msg = req.message
+            history_dicts = [m.model_dump() for m in req.history] if req.history else None
+        msg = user_msg.lower().strip()
 
         # Check if it matches a direct command
         direct_reply = None
@@ -324,8 +338,8 @@ async def chat_stream(req: ChatRequest):
             return
 
         # Gateway streaming
-        history_dicts = [m.model_dump() for m in req.history] if req.history else None
-        async for token in gateway.chat_stream(req.message, req.context, history_dicts):
+        model = req.model or gateway.selected_model
+        async for token in gateway.chat_stream(user_msg, req.context, history_dicts, model=model):
             yield f"data: {json.dumps({'token': token})}\n\n"
         yield "data: [DONE]\n\n"
 
