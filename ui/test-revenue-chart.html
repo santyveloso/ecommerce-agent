@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revenue Chart - Teste</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { font-size: 15px; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f1117;
+      color: #e8eaed;
+      -webkit-font-smoothing: antialiased;
+      padding: 40px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 32px;
+      letter-spacing: -0.3px;
+    }
+
+    /* Revenue Chart Card */
+    .revenue-chart-card {
+      background: rgba(28, 30, 38, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    .chart-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+
+    .chart-card-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .chart-card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #e8eaed;
+    }
+
+    .chart-card-subtitle {
+      font-size: 12px;
+      color: #8c8f9a;
+    }
+
+    .chart-card-controls {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+    }
+
+    .chart-summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .chart-summary-value {
+      font-weight: 600;
+      color: #38bdf8;
+      font-size: 18px;
+    }
+
+    .chart-summary-label {
+      color: #8c8f9a;
+    }
+
+    .chart-summary-sep {
+      color: #5c5f6a;
+      opacity: 0.5;
+    }
+
+    .chart-summary-orders {
+      color: #8c8f9a;
+    }
+
+    .chart-period-selector {
+      display: flex;
+      gap: 4px;
+      background: #16181f;
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .period-pill {
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: #8c8f9a;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .period-pill:hover {
+      color: #e8eaed;
+    }
+
+    .period-pill.active {
+      background: rgba(56, 189, 248, 0.1);
+      color: #38bdf8;
+    }
+
+    /* Chart Body */
+    .chart-body {
+      position: relative;
+      min-height: 320px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chart-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: #8c8f9a;
+      font-size: 13px;
+    }
+
+    .loader {
+      width: 28px;
+      height: 28px;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .chart-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: #8c8f9a;
+      font-size: 13px;
+    }
+
+    .chart-error button {
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      background: rgba(56, 189, 248, 0.1);
+      color: #38bdf8;
+      border: 1px solid #38bdf8;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chart-error button:hover {
+      background: #38bdf8;
+      color: white;
+    }
+
+    /* SVG Chart */
+    .chart-svg-wrap {
+      position: relative;
+      width: 100%;
+      height: 320px;
+    }
+
+    .revenue-chart-svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .chart-axis-label {
+      font-size: 11px;
+      fill: #8c8f9a;
+      font-family: inherit;
+    }
+
+    /* Tooltip */
+    .chart-tooltip {
+      position: absolute;
+      transform: translateX(-50%);
+      background: #16181f;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 14px;
+      pointer-events: none;
+      z-index: 10;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      min-width: 120px;
+      text-align: center;
+      animation: tooltipFadeIn 0.15s ease-out;
+    }
+
+    @keyframes tooltipFadeIn {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+    .tooltip-date {
+      font-size: 11px;
+      color: #8c8f9a;
+      margin-bottom: 6px;
+    }
+
+    .tooltip-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: #38bdf8;
+    }
+
+    /* Info Box */
+    .info-box {
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-top: 24px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .info-box strong {
+      color: #38bdf8;
+    }
+
+    .info-box code {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #e8eaed;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📈 Revenue Chart - Dados Reais Shopify</h1>
+
+    <div class="revenue-chart-card">
+      <div class="chart-card-header">
+        <div class="chart-card-title-wrap">
+          <div class="chart-card-title">Revenue</div>
+          <div class="chart-card-subtitle">Vendas por dia — dados Shopify</div>
+        </div>
+        <div class="chart-card-controls">
+          <div class="chart-summary" id="chartSummary" style="display: none;">
+            <span class="chart-summary-value" id="totalRevenue">€0</span>
+            <span class="chart-summary-label">total</span>
+            <span class="chart-summary-sep">·</span>
+            <span class="chart-summary-orders" id="totalOrders">0 orders</span>
+          </div>
+          <div class="chart-period-selector">
+            <button class="period-pill" data-days="7">7D</button>
+            <button class="period-pill active" data-days="30">30D</button>
+            <button class="period-pill" data-days="60">60D</button>
+            <button class="period-pill" data-days="90">90D</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-body">
+        <div class="chart-loading" id="loading">
+          <div class="loader"></div>
+          <span>A carregar vendas...</span>
+        </div>
+        <div class="chart-error" id="error" style="display: none;">
+          <span id="errorMessage">Erro ao carregar</span>
+          <button onclick="fetchData()">Tentar novamente</button>
+        </div>
+        <div class="chart-svg-wrap" id="chartWrap" style="display: none;">
+          <div class="chart-tooltip" id="tooltip" style="display: none;">
+            <div class="tooltip-date" id="tooltipDate"></div>
+            <div class="tooltip-value" id="tooltipValue"></div>
+          </div>
+          <svg class="revenue-chart-svg" id="chart" viewBox="0 0 800 320"></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <strong>✓ Implementação completa:</strong><br>
+      • <strong>Backend:</strong> <code>shopify.py</code> - <code>get_orders_dated()</code> com paginação<br>
+      • <strong>API:</strong> <code>/dashboard/revenue-chart?days=30</code> - dados reais agrupados por dia<br>
+      • <strong>Frontend:</strong> Componente React <code>RevenueChart.tsx</code> com SVG + gradientes + tooltip<br>
+      • <strong>CSS:</strong> <code>revenue-chart.css</code> com glassmorphism e animações<br><br>
+      <strong>Para integrar no App.tsx:</strong><br>
+      1. Importar: <code>import RevenueChart from './RevenueChart'</code><br>
+      2. Renderizar na tab Dashboard: <code>&lt;RevenueChart /&gt;</code>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:7777';
+    let chartData = null;
+    let currentDays = 30;
+
+    const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+    function formatCurrency(value, currency) {
+      const symbols = { EUR: '€', USD: '$', GBP: '£', HRK: 'kn', RON: 'lei' };
+      const sym = symbols[currency] || currency + ' ';
+      if (value >= 1000) return `${sym}${(value / 1000).toFixed(1)}k`;
+      return `${sym}${value.toFixed(0)}`;
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      return `${d.getDate()} ${months[d.getMonth()]}`;
+    }
+
+    async function fetchData() {
+      document.getElementById('loading').style.display = 'flex';
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('chartWrap').style.display = 'none';
+
+      try {
+        const res = await fetch(`${API}/dashboard/revenue-chart?days=${currentDays}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        chartData = await res.json();
+        renderChart();
+      } catch (err) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'flex';
+        document.getElementById('errorMessage').textContent = `⚠️ ${err.message}`;
+      }
+    }
+
+    function renderChart() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('chartWrap').style.display = 'block';
+
+      // Update summary
+      document.getElementById('chartSummary').style.display = 'flex';
+      document.getElementById('totalRevenue').textContent = formatCurrency(chartData.total_revenue, chartData.currency);
+      document.getElementById('totalOrders').textContent = `${chartData.total_orders} orders`;
+
+      const data = chartData.data;
+      const svg = document.getElementById('chart');
+      const width = 800;
+      const height = 320;
+      const padding = { top: 24, right: 24, bottom: 40, left: 64 };
+      const chartW = width - padding.left - padding.right;
+      const chartH = height - padding.top - padding.bottom;
+
+      if (!data.length) return;
+
+      const maxVal = Math.max(...data.map(d => d.revenue), 1);
+      const points = data.map((d, i) => ({
+        x: padding.left + (i / Math.max(data.length - 1, 1)) * chartW,
+        y: padding.top + chartH - (d.revenue / maxVal) * chartH,
+        ...d
+      }));
+
+      // Build smooth path
+      const linePath = points.reduce((acc, p, i) => {
+        if (i === 0) return `M${p.x},${p.y}`;
+        const prev = points[i - 1];
+        const cpx = (prev.x + p.x) / 2;
+        return `${acc} C${cpx},${prev.y} ${cpx},${p.y} ${p.x},${p.y}`;
+      }, '');
+
+      const areaPath = `${linePath} L${points[points.length - 1].x},${padding.top + chartH} L${points[0].x},${padding.top + chartH} Z`;
+
+      // Grid lines
+      const gridLines = 5;
+      let gridSVG = '';
+      for (let i = 0; i <= gridLines; i++) {
+        const y = padding.top + chartH - (i / gridLines) * chartH;
+        const val = (i / gridLines) * maxVal;
+        const opacity = i === 0 ? 0.8 : 0.4;
+        const dash = i === 0 ? '0' : '4 4';
+        gridSVG += `
+          <line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"
+                stroke="#262830" stroke-width="1" stroke-dasharray="${dash}" opacity="${opacity}"/>
+          <text x="${padding.left - 10}" y="${y + 4}" text-anchor="end" class="chart-axis-label">
+            ${formatCurrency(val, chartData.currency)}
+          </text>
+        `;
+      }
+
+      // X-axis labels
+      const labelEvery = data.length <= 7 ? 1 : data.length <= 14 ? 2 : data.length <= 30 ? 5 : 10;
+      let xLabelsSVG = '';
+      data.forEach((d, i) => {
+        if (i % labelEvery === 0 || i === data.length - 1) {
+          const x = padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
+          xLabelsSVG += `
+            <text x="${x}" y="${height - 8}" text-anchor="middle" class="chart-axis-label">
+              ${data.length <= 14 ? formatDate(d.date) : d.date.slice(-2)}
+            </text>
+          `;
+        }
+      });
+
+      svg.innerHTML = `
+        <defs>
+          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.02"/>
+          </linearGradient>
+          <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#3b82f6"/>
+            <stop offset="50%" stop-color="#06b6d4"/>
+            <stop offset="100%" stop-color="#38bdf8"/>
+          </linearGradient>
+        </defs>
+        ${gridSVG}
+        <path d="${areaPath}" fill="url(#chartGradient)"/>
+        <path d="${linePath}" fill="none" stroke="url(#lineGradient)" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        ${xLabelsSVG}
+      `;
+
+      // Add hover interaction
+      svg.onmousemove = (e) => {
+        const rect = svg.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const relX = mouseX - padding.left;
+        const idx = Math.round((relX / chartW) * (data.length - 1));
+        const clamped = Math.max(0, Math.min(data.length - 1, idx));
+        const point = points[clamped];
+
+        const tooltip = document.getElementById('tooltip');
+        tooltip.style.display = 'block';
+        tooltip.style.left = point.x + 'px';
+        tooltip.style.top = '12px';
+        document.getElementById('tooltipDate').textContent = formatDate(point.date);
+        document.getElementById('tooltipValue').textContent = formatCurrency(point.revenue, chartData.currency);
+      };
+
+      svg.onmouseleave = () => {
+        document.getElementById('tooltip').style.display = 'none';
+      };
+    }
+
+    // Period selector
+    document.querySelectorAll('.period-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.period-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentDays = parseInt(btn.dataset.days);
+        fetchData();
+      });
+    });
+
+    // Initial load
+    fetchData();
+  </script>
+</body>
+</html>

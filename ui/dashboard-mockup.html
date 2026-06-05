@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Mockup - Ecommerce Agent</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { font-size: 15px; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f1117;
+      color: #e8eaed;
+      -webkit-font-smoothing: antialiased;
+      padding: 40px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: -0.3px;
+    }
+
+    .subtitle {
+      color: #8c8f9a;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+
+    /* Metric Cards */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: rgba(28, 30, 38, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      border-color: rgba(56, 189, 248, 0.15);
+    }
+
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    .card.accent-blue { border-left: 3px solid #3b82f6; }
+    .card.accent-purple { border-left: 3px solid #a855f7; }
+    .card.accent-cyan { border-left: 3px solid #06b6d4; }
+    .card.accent-green { border-left: 3px solid #22c55e; }
+
+    .card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      position: relative;
+    }
+
+    .card-icon::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 13px;
+      opacity: 0.3;
+      background: inherit;
+      filter: blur(6px);
+      z-index: -1;
+    }
+
+    .icon-blue { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .icon-purple { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+    .icon-cyan { background: rgba(6, 182, 212, 0.15); color: #06b6d4; }
+    .icon-green { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+
+    .card-value {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+
+    .card-label {
+      font-size: 12px;
+      color: #8c8f9a;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #22c55e;
+    }
+
+    .card-footer.negative { color: #ef4444; }
+
+    .trending-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* Chart Section */
+    .chart-section {
+      background: rgba(28, 30, 38, 0.6);
+      backdrop-filter: blur(12px);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 32px;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .chart-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .chart-subtitle {
+      font-size: 12px;
+      color: #8c8f9a;
+      margin-top: 2px;
+    }
+
+    .sparkline {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 80px;
+      padding-top: 8px;
+    }
+
+    .spark-bar {
+      width: 4px;
+      border-radius: 2px;
+      background: linear-gradient(180deg, #06b6d4 0%, rgba(6, 182, 212, 0.3) 100%);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      min-height: 4px;
+      flex-shrink: 0;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .spark-bar:hover {
+      background: linear-gradient(180deg, #38bdf8 0%, rgba(56, 189, 248, 0.6) 100%);
+      transform: scaleY(1.1);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    .spark-bar.highlight {
+      background: linear-gradient(180deg, #38bdf8 0%, #06b6d4 100%);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+    }
+
+    /* Sections Grid */
+    .sections {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 16px;
+    }
+
+    .section {
+      background: rgba(28, 30, 38, 0.6);
+      backdrop-filter: blur(12px);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* Table */
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .table th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 500;
+      color: #5c5f6a;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .table td {
+      padding: 12px 0;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .order-name {
+      font-weight: 600;
+      color: #e8eaed;
+    }
+
+    .status-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .status-tag::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status-tag.paid {
+      background: rgba(34, 197, 94, 0.1);
+      color: #22c55e;
+    }
+
+    .status-tag.pending {
+      background: rgba(234, 179, 8, 0.1);
+      color: #eab308;
+    }
+
+    .status-tag.refunded {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .quick-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      background: rgba(28, 30, 38, 0.4);
+      backdrop-filter: blur(8px);
+      font-size: 13px;
+      font-weight: 500;
+      color: #8c8f9a;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      text-align: left;
+      width: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .quick-btn::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0;
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.1), transparent);
+      transition: width 0.3s;
+    }
+
+    .quick-btn:hover {
+      background: rgba(35, 37, 46, 0.8);
+      color: #e8eaed;
+      border-color: rgba(56, 189, 248, 0.2);
+      transform: translateX(2px);
+    }
+
+    .quick-btn:hover::before {
+      width: 100%;
+    }
+
+    .quick-btn svg {
+      flex-shrink: 0;
+      color: #5c5f6a;
+      stroke-width: 1.5px;
+      transition: color 0.2s;
+      position: relative;
+      z-index: 1;
+    }
+
+    .quick-btn:hover svg {
+      color: #38bdf8;
+    }
+
+    .quick-btn span {
+      flex: 1;
+      position: relative;
+      z-index: 1;
+    }
+
+    .quick-btn .arrow {
+      opacity: 0;
+      transform: translateX(-8px);
+      transition: all 0.2s;
+      color: #38bdf8;
+      position: relative;
+      z-index: 1;
+    }
+
+    .quick-btn:hover .arrow {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    /* Typography */
+    .greeting {
+      font-size: 13px;
+      color: #8c8f9a;
+      margin-top: 4px;
+    }
+
+    .greeting-highlight {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Dashboard</h1>
+    <p class="subtitle">Bem-vindo de volta, <span class="greeting-highlight">Santy</span> — aqui está o estado da tua loja.</p>
+
+    <!-- Metric Cards -->
+    <div class="cards">
+      <div class="card accent-blue">
+        <div class="card-icon icon-blue">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <line x1="12" y1="1" x2="12" y2="23"/>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div class="card-value">€2,847</div>
+        <div class="card-label">Receita Hoje</div>
+        <div class="card-footer">
+          <svg class="trending-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+            <polyline points="17 6 23 6 23 12"/>
+          </svg>
+          +12.5% vs ontem
+        </div>
+      </div>
+
+      <div class="card accent-purple">
+        <div class="card-icon icon-purple">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+        </div>
+        <div class="card-value">142</div>
+        <div class="card-label">Encomendas Hoje</div>
+        <div class="card-footer">
+          <svg class="trending-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+            <polyline points="17 6 23 6 23 12"/>
+          </svg>
+          +8.2% vs ontem
+        </div>
+      </div>
+
+      <div class="card accent-cyan">
+        <div class="card-icon icon-cyan">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+            <line x1="12" y1="22.08" x2="12" y2="12"/>
+          </svg>
+        </div>
+        <div class="card-value">1,247</div>
+        <div class="card-label">Produtos Ativos</div>
+        <div class="card-footer">
+          23 em stock baixo
+        </div>
+      </div>
+
+      <div class="card accent-green">
+        <div class="card-icon icon-green">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+            <polyline points="17 6 23 6 23 12"/>
+          </svg>
+        </div>
+        <div class="card-value">€19.72</div>
+        <div class="card-label">AOV (Average Order Value)</div>
+        <div class="card-footer">
+          <svg class="trending-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+            <polyline points="17 6 23 6 23 12"/>
+          </svg>
+          +3.8% vs média
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart Section -->
+    <div class="chart-section">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Receita dos Últimos 30 Dias</div>
+          <div class="chart-subtitle">Tendência diária de vendas</div>
+        </div>
+      </div>
+      <div class="sparkline">
+        <div class="spark-bar" style="height: 45px;"></div>
+        <div class="spark-bar" style="height: 52px;"></div>
+        <div class="spark-bar" style="height: 48px;"></div>
+        <div class="spark-bar" style="height: 61px;"></div>
+        <div class="spark-bar" style="height: 55px;"></div>
+        <div class="spark-bar" style="height: 58px;"></div>
+        <div class="spark-bar" style="height: 63px;"></div>
+        <div class="spark-bar" style="height: 59px;"></div>
+        <div class="spark-bar" style="height: 67px;"></div>
+        <div class="spark-bar" style="height: 62px;"></div>
+        <div class="spark-bar" style="height: 70px;"></div>
+        <div class="spark-bar" style="height: 65px;"></div>
+        <div class="spark-bar" style="height: 72px;"></div>
+        <div class="spark-bar" style="height: 68px;"></div>
+        <div class="spark-bar highlight" style="height: 75px;"></div>
+        <div class="spark-bar" style="height: 71px;"></div>
+        <div class="spark-bar" style="height: 74px;"></div>
+        <div class="spark-bar" style="height: 69px;"></div>
+        <div class="spark-bar" style="height: 76px;"></div>
+        <div class="spark-bar" style="height: 73px;"></div>
+        <div class="spark-bar" style="height: 78px;"></div>
+        <div class="spark-bar" style="height: 75px;"></div>
+        <div class="spark-bar" style="height: 79px;"></div>
+        <div class="spark-bar" style="height: 77px;"></div>
+        <div class="spark-bar highlight" style="height: 80px;"></div>
+      </div>
+    </div>
+
+    <!-- Sections -->
+    <div class="sections">
+      <!-- Recent Orders -->
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">Encomendas Recentes</div>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Encomenda</th>
+              <th>Cliente</th>
+              <th>Total</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="order-name">#1042</span></td>
+              <td>Maria Silva</td>
+              <td>€47.90</td>
+              <td><span class="status-tag paid">Pago</span></td>
+            </tr>
+            <tr>
+              <td><span class="order-name">#1041</span></td>
+              <td>João Santos</td>
+              <td>€32.50</td>
+              <td><span class="status-tag paid">Pago</span></td>
+            </tr>
+            <tr>
+              <td><span class="order-name">#1040</span></td>
+              <td>Ana Costa</td>
+              <td>€89.99</td>
+              <td><span class="status-tag pending">Pendente</span></td>
+            </tr>
+            <tr>
+              <td><span class="order-name">#1039</span></td>
+              <td>Pedro Almeida</td>
+              <td>€24.75</td>
+              <td><span class="status-tag paid">Pago</span></td>
+            </tr>
+            <tr>
+              <td><span class="order-name">#1038</span></td>
+              <td>Sofia Ferreira</td>
+              <td>€56.30</td>
+              <td><span class="status-tag refunded">Reembolsado</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">Ações Rápidas</div>
+        </div>
+        <div class="quick-actions">
+          <button class="quick-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Ver Conversas</span>
+            <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+
+          <button class="quick-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+            </svg>
+            <span>Creative Studio</span>
+            <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+
+          <button class="quick-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+            <span>Ver Emails</span>
+            <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+
+          <button class="quick-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            <span>Automações</span>
+            <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

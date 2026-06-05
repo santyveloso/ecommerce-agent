@@ -1,0 +1,188 @@
+import { useEffect, useRef, useState } from 'react'
+import MessageBubble from './MessageBubble'
+
+interface ApprovalInfo {
+  id: string
+  intent: string
+  summary: string
+  status: 'pending' | 'approved' | 'rejected'
+}
+
+interface MediaInfo {
+  url: string
+  type: 'video' | 'image'
+  prompt?: string
+  name?: string
+}
+
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+  approvalRequired?: boolean
+  approval?: ApprovalInfo
+  media?: MediaInfo
+}
+
+interface ChatMessagesProps {
+  messages: Message[]
+  isStreaming: boolean
+  streamingContent: string
+  onCopy: (content: string) => void
+  copiedMessageId: string | null
+  onEdit?: (index: number, newContent: string) => void
+  onRegenerate?: (index: number) => void
+  onDelete?: (index: number) => void
+  onApprove?: (approvalId: string) => void
+  onReject?: (approvalId: string) => void
+  onNewChat?: () => void
+  emptyStateTitle?: string
+  emptyStateSubtitle?: string
+}
+
+export default function ChatMessages({
+  messages,
+  isStreaming,
+  streamingContent,
+  onCopy,
+  copiedMessageId,
+  onEdit,
+  onRegenerate,
+  onDelete,
+  onApprove,
+  onReject,
+  onNewChat,
+  emptyStateTitle = 'What can I help with?',
+  emptyStateSubtitle = 'Ask about orders, products, customers, or anything about your store.',
+}: ChatMessagesProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [showScrollButton, setShowScrollButton] = useState(false)
+  const prevMsgCountRef = useRef(messages.length)
+
+  // Auto-scroll on new messages or streaming updates
+  useEffect(() => {
+    const shouldScroll = messages.length > prevMsgCountRef.current || isStreaming
+    if (shouldScroll) {
+      containerRef.current?.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: 'smooth',
+      })
+    }
+    prevMsgCountRef.current = messages.length
+  }, [messages.length, isStreaming, streamingContent])
+
+  // Detect scroll position for "scroll to bottom" button
+  const handleScroll = () => {
+    const el = containerRef.current
+    if (!el) return
+    const diff = el.scrollHeight - el.scrollTop - el.clientHeight
+    setShowScrollButton(diff > 200)
+  }
+
+  const scrollToBottom = () => {
+    containerRef.current?.scrollTo({
+      top: containerRef.current.scrollHeight,
+      behavior: 'smooth',
+    })
+  }
+
+  const isEmpty = messages.length === 0 && !streamingContent
+
+  if (isEmpty) {
+    return (
+      <div className="chat-messages-empty">
+        <div className="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </div>
+        <h3>{emptyStateTitle}</h3>
+        <p>{emptyStateSubtitle}</p>
+        {onNewChat && (
+          <div className="empty-suggestions">
+            <button className="suggestion-chip" onClick={() => onNewChat()}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              New conversation
+            </button>
+          </div>
+        )}
+        <div className="quick-prompts">
+          <p className="quick-prompts-label">Try asking:</p>
+          <button className="quick-prompt-btn" onClick={() => onNewChat?.()}>
+            "What were my sales today?"
+          </button>
+          <button className="quick-prompt-btn" onClick={() => onNewChat?.()}>
+            "Show me low stock products"
+          </button>
+          <button className="quick-prompt-btn" onClick={() => onNewChat?.()}>
+            "Summarize pending orders"
+          </button>
+          <button className="quick-prompt-btn" onClick={() => onNewChat?.()}>
+            "Help me write a product description"
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Generate a stable key for the streaming message
+  const streamMsgKey = `streaming-${messages.length}`
+
+  return (
+    <div className="chat-messages-container">
+      <div className="chat-messages" ref={containerRef} onScroll={handleScroll}>
+        {messages.map((msg, i) => (
+          <MessageBubble
+            key={`${msg.role}-${i}-${msg.content.slice(0, 20)}`}
+            message={msg}
+            index={i}
+            onCopy={onCopy}
+            copied={copiedMessageId === `msg-${i}`}
+            onEdit={onEdit}
+            onRegenerate={onRegenerate}
+            onDelete={onDelete}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
+        ))}
+
+        {/* Streaming message */}
+        {isStreaming && streamingContent && (
+          <MessageBubble
+            key={streamMsgKey}
+            message={{ role: 'assistant', content: streamingContent }}
+            index={messages.length}
+            onCopy={onCopy}
+            copied={false}
+          />
+        )}
+
+        {/* Streaming indicator */}
+        {isStreaming && !streamingContent && (
+          <div className="message-bubble assistant streaming">
+            <div className="message-avatar assistant-avatar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            </div>
+            <div className="message-content">
+              <div className="typing-indicator">
+                <span /><span /><span />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="chat-scroll-anchor" />
+      </div>
+
+      {/* Scroll to bottom button */}
+      {showScrollButton && (
+        <button className="scroll-to-bottom" onClick={scrollToBottom} title="Scroll to bottom">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}

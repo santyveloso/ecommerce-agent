@@ -1,0 +1,248 @@
+/* ── Revenue Chart Card ──────────────────────── */
+
+.revenue-chart-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.chart-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.chart-card-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chart-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.chart-card-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.chart-card-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chart-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.chart-summary-value {
+  font-weight: 600;
+  color: var(--electric);
+}
+
+.chart-summary-label {
+  color: var(--text-muted);
+}
+
+.chart-summary-sep {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.chart-summary-orders {
+  color: var(--text-secondary);
+}
+
+.chart-period-selector {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.period-pill {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.period-pill:hover {
+  color: var(--text);
+}
+
+.period-pill.active {
+  background: var(--electric-bg);
+  color: var(--electric);
+}
+
+/* ── Chart Body ─────────────────────────────── */
+
+.chart-body {
+  position: relative;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-loading,
+.chart-error,
+.chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.chart-loading .loader {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--surface-border);
+  border-top-color: var(--electric);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.chart-error button {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--electric-bg);
+  color: var(--electric);
+  border: 1px solid var(--electric);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chart-error button:hover {
+  background: var(--electric);
+  color: white;
+}
+
+/* ── SVG Chart ──────────────────────────────── */
+
+.chart-svg-wrap {
+  position: relative;
+  width: 100%;
+  height: 280px;
+}
+
+.revenue-chart-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.chart-axis-label {
+  font-size: 10px;
+  fill: var(--text-muted);
+  font-family: inherit;
+}
+
+/* ── Tooltip ────────────────────────────────── */
+
+.chart-tooltip {
+  position: absolute;
+  transform: translateX(-50%);
+  background: var(--bg-sidebar);
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 100px;
+  text-align: center;
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.tooltip-date {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.tooltip-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--electric);
+}
+
+.tooltip-dot {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  background: var(--electric);
+  border: 2px solid var(--bg-sidebar);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--electric);
+}
+
+/* ── Responsive ─────────────────────────────── */
+
+@media (max-width: 768px) {
+  .chart-card-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chart-card-controls {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .chart-summary {
+    flex-wrap: wrap;
+  }
+
+  .chart-period-selector {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .period-pill {
+    flex: 1;
+    text-align: center;
+  }
+}
