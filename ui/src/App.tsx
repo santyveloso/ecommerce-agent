@@ -257,6 +257,11 @@ function Dashboard() {
   const pickerRef = useRef<HTMLDivElement>(null)
   const dateSinceRef = useRef<HTMLInputElement>(null)
   const dateUntilRef = useRef<HTMLInputElement>(null)
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth())
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear())
+  const [calSelect, setCalSelect] = useState<'since' | 'until'>('since')
+  const [calSince, setCalSince] = useState('')
+  const [calUntil, setCalUntil] = useState('')
   useEffect(() => {
     if (!showDatePicker) return
     const handler = (e: MouseEvent) => {
@@ -1154,7 +1159,7 @@ function Dashboard() {
                       {p === 'today' ? 'Hoje' : p === 'week' ? 'Semana' : 'Mes'}
                     </button>
                   ))}
-                  <button className={`period-btn ${dateRange ? 'active' : ''}`} onClick={() => setShowDatePicker(!showDatePicker)}>
+                  <button className={`period-btn ${dateRange ? 'active' : ''}`} onClick={() => { setShowDatePicker(!showDatePicker); setCalSince(''); setCalUntil(''); setCalSelect('since') }}>
                     {Icons.calendar}
                   </button>
                 </div>
@@ -1186,14 +1191,45 @@ function Dashboard() {
                       }}>Este mês</button>
                     </div>
                     <div className="date-picker-custom">
-                      <label>De</label>
-                      <input ref={dateSinceRef} type="date" className="date-input" onChange={e => {
-                        if (e.target.value && dateUntilRef.current?.value) changePeriod('custom', e.target.value, dateUntilRef.current.value)
-                      }} />
-                      <label>Até</label>
-                      <input ref={dateUntilRef} type="date" className="date-input" onChange={e => {
-                        if (dateSinceRef.current?.value && e.target.value) changePeriod('custom', dateSinceRef.current.value, e.target.value)
-                      }} />
+                      <div className="cal-nav">
+                        <button className="cal-nav-btn" onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1) } else setCalMonth(calMonth - 1) }}>{'‹'}</button>
+                        <span className="cal-nav-label">{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][calMonth]} {calYear}</span>
+                        <button className="cal-nav-btn" onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) } else setCalMonth(calMonth + 1) }}>{'›'}</button>
+                      </div>
+                      <div className="cal-grid">
+                        {['D','S','T','Q','Q','S','S'].map(d => <div key={d} className="cal-day-header">{d}</div>)}
+                        {(() => {
+                          const days = new Date(calYear, calMonth + 1, 0).getDate()
+                          const startDow = new Date(calYear, calMonth, 1).getDay()
+                          const cells = []
+                          for (let i = 0; i < startDow; i++) cells.push(<div key={`e${i}`} className="cal-day empty" />)
+                          for (let d = 1; d <= days; d++) {
+                            const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+                            const isSince = calSince === dateStr
+                            const isUntil = calUntil === dateStr
+                            const inRange = calSince && calUntil && dateStr >= calSince && dateStr <= calUntil
+                            const isToday = dateStr === new Date().toISOString().slice(0, 10)
+                            cells.push(
+                              <div key={d} className={`cal-day ${isSince || isUntil ? 'selected' : ''} ${inRange ? 'in-range' : ''} ${isToday ? 'today' : ''}`}
+                                onClick={() => {
+                                  if (!calSince || (calSince && calUntil)) {
+                                    setCalSince(dateStr); setCalUntil(''); setCalSelect('until')
+                                  } else {
+                                    setCalUntil(dateStr)
+                                    changePeriod('custom', calSince, dateStr)
+                                  }
+                                }}
+                              >{d}</div>
+                            )
+                          }
+                          return cells
+                        })()}
+                      </div>
+                      <div className="cal-selection">
+                        {calSince && <span className="cal-badge">De: {calSince}</span>}
+                        {calUntil && <span className="cal-badge">Até: {calUntil}</span>}
+                        {!calSince && <span className="cal-muted">Clique num dia para começar</span>}
+                      </div>
                     </div>
                   </div>
                 )}
