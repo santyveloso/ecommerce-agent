@@ -41,6 +41,7 @@ interface Folder {
   id: string
   name: string
   expanded: boolean
+  color?: string
 }
 interface ChatSession {
   id: string
@@ -52,7 +53,7 @@ interface ChatSession {
 }
 
 const API = 'http://localhost:7777'
-const MODELS = ['gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4-20250514', 'claude-haiku-3-5']
+const FALLBACK_MODELS = ['deepseek-v4-flash', 'gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4-20250514']
 
 /* ── SVG Icons ──────────────────────────────── */
 const Icons = {
@@ -178,13 +179,41 @@ function Dashboard() {
   })
   const [activeTab, setActiveTab] = useState('dashboard')
   const [sidebarCollapsed, _setSidebarCollapseFn] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(240)
+  const [sidebarWidth, setSidebarWidth] = useState(200)
+  const [availableModels, setAvailableModels] = useState<string[]>(FALLBACK_MODELS)
+  const [gatewayActiveModel, setGatewayActiveModel] = useState<string>('deepseek-v4-flash')
 
   // Theme
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
     localStorage.setItem('ec_theme', dark ? 'dark' : 'light')
   }, [dark])
+
+  // ── Fetch available models from gateway ────
+  useEffect(() => {
+    fetch(`${API}/gateway/models`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.models?.length) {
+          setAvailableModels(data.models)
+        }
+        if (data.active) {
+          setGatewayActiveModel(data.active)
+        }
+      })
+      .catch(() => {/* gateway offline, fallback models */})
+  }, [])
+
+  const setActiveModel = useCallback(async (model: string) => {
+    setGatewayActiveModel(model)
+    try {
+      await fetch(`${API}/gateway/model`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      })
+    } catch {/* silent */}
+  }, [])
 
   // ── Dashboard Data ──────────────────────
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
@@ -257,6 +286,7 @@ function Dashboard() {
   const pickerRef = useRef<HTMLDivElement>(null)
   const dateSinceRef = useRef<HTMLInputElement>(null)
   const dateUntilRef = useRef<HTMLInputElement>(null)
+  const calGridRef = useRef<HTMLDivElement>(null)
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth())
   const [calYear, setCalYear] = useState(() => new Date().getFullYear())
   const [calSelect, setCalSelect] = useState<'since' | 'until'>('since')
@@ -272,6 +302,24 @@ function Dashboard() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showDatePicker])
+
+  // Scroll no calendário para mudar mês
+  useEffect(() => {
+    const el = calGridRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      if (e.deltaY > 0) {
+        if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1) }
+        else setCalMonth(m => m + 1)
+      } else {
+        if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1) }
+        else setCalMonth(m => m - 1)
+      }
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [showDatePicker, calMonth, calYear])
 
   // Muda período (incluindo custom)
   const changePeriod = useCallback(async (p: string, since?: string, until?: string) => {
@@ -318,7 +366,7 @@ function Dashboard() {
       const saved = localStorage.getItem('ec_chat_sessions')
       if (saved) return JSON.parse(saved)
     } catch {}
-    return [{ id: 'default', title: 'Conversa Geral', messages: [], model: 'gpt-4o' }]
+    return [{ id: 'default', title: 'Conversa Geral', messages: [], model: 'deepseek-v4-flash' }]
   })
   const [activeSessionId, setActiveSessionId] = useState<string>(() => {
     return localStorage.getItem('ec_active_session') || 'default'
@@ -370,7 +418,7 @@ function Dashboard() {
       id,
       title: 'Nova Conversa',
       messages: [],
-      model: 'gpt-4o',
+      model: 'deepseek-v4-flash',
     }
     setSessions(prev => [newSession, ...prev])
     setActiveSessionId(id)
@@ -383,7 +431,7 @@ function Dashboard() {
       if (filtered.length === 0) {
         // Create a default session
         const newId = uid()
-        const def: ChatSession = { id: newId, title: 'Conversa Geral', messages: [], model: 'gpt-4o' }
+        const def: ChatSession = { id: newId, title: 'Conversa Geral', messages: [], model: 'deepseek-v4-flash' }
         setActiveSessionId(newId)
         return [def]
       }
@@ -402,13 +450,17 @@ function Dashboard() {
     setSessions(prev => prev.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s))
   }, [])
 
-  const newFolder = useCallback((name: string) => {
-    setFolders(prev => [...prev, { id: uid(), name, expanded: true }])
+  const newFolder = useCallback((name: string, color?: string) => {
+    setFolders(prev => [...prev, { id: uid(), name, expanded: true, color }])
   }, [])
 
   const deleteFolder = useCallback((id: string) => {
     setFolders(prev => prev.filter(f => f.id !== id))
     setSessions(prev => prev.map(s => s.folderId === id ? { ...s, folderId: null } : s))
+  }, [])
+
+  const setFolderColor = useCallback((folderId: string, color: string) => {
+    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, color } : f))
   }, [])
 
   const toggleFolder = useCallback((id: string) => {
@@ -483,7 +535,7 @@ function Dashboard() {
       .map(m => ({ role: m.role, content: m.content }))
     conversationMessages.push({ role: 'user', content: msg })
 
-    const model = activeSession.model || 'gpt-4o'
+    const model = activeSession.model || gatewayActiveModel || 'deepseek-v4-flash'
 
     // Try SSE streaming, fallback to non-streaming
     try {
@@ -786,31 +838,14 @@ function Dashboard() {
   }, [])
 
   const talkToHermes = useCallback((order: any) => {
-    const id = uid()
     const itemsText = (order.items || [])
       .map((i: any) => `- ${i.qty}x ${i.title}${i.sku ? ` (${i.sku})` : ''}${i.price ? ` — ${i.price}${order.currency || '€'}` : ''}`)
       .join('\n')
-    const contextMsg = `📋 **${order.name}**\nCliente: ${order.customer}\nEmail: ${order.email}\nTotal: ${order.total}${order.currency || '€'}\nEstado: ${order.status}\nEnvio: ${order.fulfillment}\nMorada: ${order.address}\n\n**Items:**\n${itemsText || '-'}\n\nPodes analisar esta encomenda para mim?`
+    const contextMsg = `📋 **${order.name}**\nCliente: ${order.customer}\nEmail: ${order.email}\nTotal: ${order.total}${order.currency || '€'}\nEstado: ${order.status}\nEnvio: ${order.fulfillment}\nMorada: ${order.address}\n\n**Items:**\n${itemsText || '-'}`
 
-    const userMsg: Message = { role: 'user', content: contextMsg, timestamp: new Date().toISOString() }
-    const assistantMsg = { role: 'assistant' as const, content: '', timestamp: new Date().toISOString(), id: uid() } as any
-    const newSession: ChatSession = {
-      id,
-      title: `Order ${order.name}`,
-      messages: [userMsg, assistantMsg],
-      model: 'gpt-4o',
-    }
-    setSessions(prev => [newSession, ...prev])
-    setActiveSessionId(id)
-    setChatInputValue('')
+    setChatInputValue(contextMsg)
     setActiveTab('chat')
-    setStreamingContent('')
-    setIsStreamingDone(false)
-
-    // Start streaming response immediately
-    const conversationMessages = [{ role: 'user' as const, content: contextMsg }]
-    startStream(conversationMessages, 'gpt-4o')
-  }, [startStream])
+  }, [setChatInputValue, setActiveTab])
 
   // ── Emails Tab ──────────────────────────
   const [emails, setEmails] = useState<any[]>([])
@@ -997,7 +1032,7 @@ function Dashboard() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return
-      const w = Math.max(56, Math.min(400, e.clientX))
+      const w = Math.max(56, Math.min(200, e.clientX))
       setSidebarWidth(w)
       if (w < COLLAPSE_THRESHOLD && !collapsedRef.current) setSidebarCollapsed(true)
       if (w > COLLAPSE_THRESHOLD + 20 && collapsedRef.current) setSidebarCollapsed(false)
@@ -1196,7 +1231,7 @@ function Dashboard() {
                         <span className="cal-nav-label">{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][calMonth]} {calYear}</span>
                         <button className="cal-nav-btn" onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1) } else setCalMonth(calMonth + 1) }}>{'›'}</button>
                       </div>
-                      <div className="cal-grid">
+                      <div className="cal-grid" ref={calGridRef}>
                         {['D','S','T','Q','Q','S','S'].map(d => <div key={d} className="cal-day-header">{d}</div>)}
                         {(() => {
                           const days = new Date(calYear, calMonth + 1, 0).getDate()
@@ -1246,7 +1281,7 @@ function Dashboard() {
                   <div className="card accent-blue">
                     <div className="card-icon" style={{ background: 'var(--chart-blue)' }}>{Icons.dollar}</div>
                     <div className="card-value">{dashboardData.revenue != null ? `${dashboardData.revenue.toFixed(2)}€` : dashboardData.revenueToday}</div>
-                    <div className="card-label">{dateRange ? `${dateRange.since} a ${dateRange.until}` : period === 'today' ? 'Receita de Hoje' : period === 'week' ? 'Receita (7 dias)' : 'Receita do Mês'}</div>
+                    <div className="card-label">{period === 'today' ? 'Receita de Hoje' : period === 'week' ? 'Receita (7 dias)' : 'Receita do Mês'}</div>
                   </div>
                   <div className="card accent-purple">
                     <div className="card-icon" style={{ background: 'var(--chart-purple)' }}>{Icons.trending}</div>
@@ -1256,7 +1291,7 @@ function Dashboard() {
                   <div className="card accent-green">
                     <div className="card-icon" style={{ background: 'var(--success)' }}>{Icons.cart}</div>
                     <div className="card-value">{dashboardData.orders != null ? dashboardData.orders : dashboardData.ordersToday}</div>
-                    <div className="card-label">Compras{dateRange ? ` (${dateRange.since} a ${dateRange.until})` : period === 'today' ? ' Hoje' : period === 'week' ? ' (7 dias)' : ' (Mês)'}</div>
+                    <div className="card-label">Compras{period === 'today' ? ' Hoje' : period === 'week' ? ' (7 dias)' : ' (Mês)'}</div>
                   </div>
                   <div className="card accent-cyan">
                     <div className="card-icon" style={{ background: 'var(--chart-cyan)' }}>{Icons.dollar}</div>
@@ -1353,6 +1388,7 @@ function Dashboard() {
                 onTogglePin={togglePin}
                 onNewFolder={newFolder}
                 onDeleteFolder={deleteFolder}
+                onSetFolderColor={setFolderColor}
                 onToggleFolder={toggleFolder}
                 onMoveSession={moveSession}
               />
@@ -1410,13 +1446,14 @@ function Dashboard() {
                 onSetSuggestions={setSuggestions}
                 onSetTriggerIdx={setSuggestionTriggerIdx}
                 onSetActiveSuggestionIdx={setActiveSuggestionIdx}
-                model={activeSession?.model || 'gpt-4o'}
+                model={activeSession?.model || gatewayActiveModel}
                 onModelChange={(model) => {
                   setSessions(prev => prev.map(s =>
                     s.id === activeSessionId ? { ...s, model } : s
                   ))
+                  setActiveModel(model)
                 }}
-                models={MODELS}
+                models={availableModels}
               />
             </div>
           </div>
