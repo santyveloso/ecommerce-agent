@@ -143,56 +143,7 @@ class ZohoClient:
         params = {
             "folderId": inbox_id,
             "status": "unread",
-            "limit": 50
-        }
-
-        headers = {
-            "Authorization": f"Zoho-oauthtoken {token}",
-            "Content-Type": "application/json"
-        }
-
-        async with httpx.AsyncClient() as client:
-            r = await client.get(url, headers=headers, params=params, timeout=10.0)
-            if r.status_code != 200:
-                raise Exception(f"Erro ao buscar mensagens Zoho: {r.status_code} - {r.text}")
-            
-            res = r.json()
-            data = res.get("data", [])
-            
-            emails = []
-            for msg in data:
-                received_time = msg.get("receivedTime")
-                date_str = ""
-                if received_time:
-                    try:
-                        dt = datetime.fromtimestamp(int(received_time) / 1000)
-                        date_str = dt.isoformat()
-                    except Exception:
-                        date_str = str(received_time)
-                
-                emails.append({
-                    "id": str(msg["messageId"]),
-                    "from": msg.get("sender", msg.get("fromAddress", "Desconhecido")),
-                    "subject": msg.get("subject", "(Sem Assunto)"),
-                    "date": date_str,
-                    "snippet": msg.get("summary", ""),
-                })
-            return emails
-
-    async def get_message_content(self, message_id: str) -> dict:
-        """Fetches full content of a specific message."""
-        if self.is_demo():
-            return self._get_simulated_message_content(message_id)
-
-        token = await self.get_access_token()
-        account_id = await self.get_account_id()
-        region = self.config.zoho_region or "com"
-
-        # Try the view endpoint with limit=1 (this is the same endpoint used for listing)
-        url = f"https://mail.zoho.{region}/api/accounts/{account_id}/messages/view"
-        params = {
-            "messageId": message_id,
-            "limit": 1,
+            "limit": 50,
         }
 
         headers = {
@@ -203,64 +154,86 @@ class ZohoClient:
         async with httpx.AsyncClient() as client:
             r = await client.get(url, headers=headers, params=params, timeout=10.0)
             if r.status_code != 200:
-                # Fallback: try the direct message URL
-                fallback_url = f"https://mail.zoho.{region}/api/accounts/{account_id}/messages/{message_id}"
-                r2 = await client.get(fallback_url, headers=headers, timeout=10.0)
-                if r2.status_code != 200:
-                    # Last resort: return snippet as content
-                    return {
-                        "id": message_id,
-                        "from": "",
-                        "to": "",
-                        "subject": "",
-                        "date": "",
-                        "content": "(Conteúdo completo não disponível para esta mensagem)",
-                        "contentHtml": "",
-                    }
-                res = r2.json()
-            else:
-                res = r.json()
+                raise Exception(f"Erro ao buscar mensagens Zoho: {r.status_code} - {r.text}")
 
+            res = r.json()
             data = res.get("data", [])
-            if not data:
-                return {
-                    "id": message_id,
-                    "from": "",
-                    "to": "",
-                    "subject": "",
-                    "date": "",
-                    "content": "(Conteúdo não encontrado)",
-                    "contentHtml": "",
-                }
 
-            msg = data[0]
-            received_time = msg.get("receivedTime")
-            date_str = ""
-            if received_time:
-                try:
-                    dt = datetime.fromtimestamp(int(received_time) / 1000)
-                    date_str = dt.isoformat()
-                except Exception:
-                    date_str = str(received_time)
+            emails = []
+            for msg in data:
+                received_time = msg.get("receivedTime")
+                date_str = ""
+                if received_time:
+                    try:
+                        dt = datetime.fromtimestamp(int(received_time) / 1000)
+                        date_str = dt.isoformat()
+                    except Exception:
+                        date_str = str(received_time)
 
-            content_html = msg.get("content", "")
-            import re
-            content_text = re.sub(r"<[^>]+>", "", content_html).strip()
+                content_html = msg.get("content", "")
+                import re
+                content_text = re.sub(r"<[^>]+>", "", content_html).strip() if content_html else ""
 
-            # Fallback to summary/snippet if content is empty
-            if not content_text and not content_html:
-                content_text = msg.get("summary", msg.get("snippet", ""))
+                emails.append({
+                    "id": str(msg["messageId"]),
+                    "from": msg.get("sender", msg.get("fromAddress", "Desconhecido")),
+                    "subject": msg.get("subject", "(Sem Assunto)"),
+                    "date": date_str,
+                    "snippet": msg.get("summary", ""),
+                    "content": content_text or msg.get("summary", ""),
+                    "contentHtml": content_html,
+                    "threadId": str(msg.get("threadId", "")) if msg.get("threadId") else None,
+                    "to": msg.get("toAddress", ""),
+                })
+            return emails
 
-            return {
-                "id": str(msg["messageId"]),
-                "from": msg.get("sender", msg.get("fromAddress", "Desconhecido")),
-                "to": msg.get("toAddress", ""),
-                "subject": msg.get("subject", "(Sem Assunto)"),
-                "date": date_str,
-                "content": content_text or content_html,
-                "contentHtml": content_html,
-                "threadId": str(msg.get("threadId", msg.get("conversationId", ""))) if msg.get("threadId") or msg.get("conversationId") else None,
-            }
+    async def get_message_content(self, message_id: str) -> dict:
+        """Fetches full content of a specific message.
+
+        The Zoho Mail API does not provide a reliable single-message endpoint.
+        We include full content during listing, and fall back to re-fetching
+        the inbox as a search if needed.
+        """
+        if self.is_demo():
+            return self._get_simulated_message_content(message_id)
+
+        token = await self.get_access_token()
+        account_id = await self.get_account_id()
+        region = self.config.zoho_region or "com"
+
+        headers = {
+            "Authorization": f"Zoho-oauthtoken {token}",
+            "Content-Type": "application/json",
+        }
+
+        # Try direct message URL first
+        direct_url = f"https://mail.zoho.{region}/api/accounts/{account_id}/messages/{message_id}"
+        async with httpx.AsyncClient() as client:
+            r = await client.get(direct_url, headers=headers, timeout=10.0)
+            if r.status_code == 200:
+                res = r.json()
+                data = res.get("data", [])
+                if data:
+                    return self._parse_message(data[0])
+
+        # Fallback: re-fetch the inbox and find the message
+        try:
+            emails = await self.get_unread_emails()
+            for email in emails:
+                if email["id"] == message_id:
+                    return email
+        except Exception:
+            pass
+
+        return {
+            "id": message_id,
+            "from": "",
+            "to": "",
+            "subject": "",
+            "date": "",
+            "content": "(Conteúdo não disponível para esta mensagem)",
+            "contentHtml": "",
+        }
 
     async def get_thread(self, message_id: str) -> dict:
         """Fetches the full thread/conversation for a given message."""
@@ -318,31 +291,9 @@ class ZohoClient:
             data = res.get("data", [])
             messages = []
             for m in data:
-                received_time = m.get("receivedTime")
-                date_str = ""
-                if received_time:
-                    try:
-                        dt = datetime.fromtimestamp(int(received_time) / 1000)
-                        date_str = dt.isoformat()
-                    except:
-                        date_str = str(received_time)
+                messages.append(self._parse_message(m))
 
-                content_html = m.get("content", "")
-                import re
-                content_text = re.sub(r"<[^>]+>", "", content_html).strip()
-                if not content_text and not content_html:
-                    content_text = m.get("summary", "")
-
-                messages.append({
-                    "id": str(m["messageId"]),
-                    "from": m.get("sender", m.get("fromAddress", "Desconhecido")),
-                    "subject": m.get("subject", "(Sem Assunto)"),
-                    "date": date_str,
-                    "content": content_text or content_html,
-                    "contentHtml": content_html,
-                })
-
-            messages.sort(key=lambda x: x.get("date", ""))
+            messages.sort(key=lambda x: x.get("date", "") or "")
             return {
                 "threadId": thread_id,
                 "messages": messages,

@@ -10,12 +10,58 @@
 
 /* Chat header */
 .chat-header {
-  padding: 14px 24px;
+  padding: 10px 20px;
   border-bottom: 1px solid var(--surface-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--bg);
+  min-height: 48px;
+}
+
+.chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-header-title {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.chat-header-streaming {
+  font-size: 11px;
+  color: var(--electric);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-header-error {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.chat-header-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chat-header-new:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+  border-color: var(--accent);
 }
 
 .streaming-dot {
@@ -40,7 +86,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-width: 860px;
+  max-width: 900px;
   margin: 0 auto;
   width: 100%;
 }
@@ -166,17 +212,12 @@
   background: var(--surface-hover);
 }
 
-/* ── Message Bubble (Codex style: full-width card) ── */
+/* ── Message Bubble (Codex style: clean, minimal) ── */
 .message-bubble {
   display: flex;
   gap: 14px;
-  padding: 16px 24px;
+  padding: 12px 20px;
   position: relative;
-  transition: background 0.12s;
-}
-
-.message-bubble:hover {
-  background: var(--surface-hover);
 }
 
 .message-bubble.user {
@@ -477,7 +518,7 @@
 
 /* ── Chat Input ─────────────────────────────── */
 .chat-input-container {
-  padding: 16px 24px 20px;
+  padding: 12px 20px 16px;
   border-top: 1px solid var(--surface-border);
   background: var(--bg);
   position: relative;

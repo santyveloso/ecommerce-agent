@@ -913,14 +913,7 @@ function Dashboard() {
     }
   }, [])
 
-  // ── Delete asset ────────────────────────
-  const deleteAsset = async (filename: string) => {
-    try {
-      const res = await fetch(`${API}/studio/upload/${filename}`, { method: 'DELETE' })
-      if (res.ok) setStudioUploads(prev => prev.filter(a => a.filename !== filename))
-    } catch (err) { console.error('Erro ao eliminar', err) }
-  }
-  const [studioShowSuggestions, setStudioShowSuggestions] = useState(false)
+  // ── Studio @mention autocomplete ──────────
   const [studioSuggestions, setStudioSuggestions] = useState<string[]>([])
   const [studioSuggestionTriggerIdx, setStudioSuggestionTriggerIdx] = useState(-1)
   const [studioActiveSuggestionIdx, setStudioActiveSuggestionIdx] = useState(0)

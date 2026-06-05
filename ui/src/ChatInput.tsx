@@ -24,7 +24,7 @@ interface ChatInputProps {
   characterLimit?: number
 }
 
-const DEFAULT_MODELS = ['gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022']
+const DEFAULT_MODELS = ['gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4-20250514', 'claude-haiku-3-5']
 
 export default function ChatInput({
   value,
