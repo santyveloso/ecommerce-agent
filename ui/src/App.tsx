@@ -137,7 +137,281 @@ function Onboarding({ onDone }: { onDone: () => void }) {
   )
 }
 
-/* ── Main App ───────────────────────────────── */
+/* ── LinksPage ──────────────────────────────── */
+function LinksPage({ api, icons }: { api: string; icons: typeof Icons }) {
+  const STORAGE_KEY = 'ec_links_v1'
+
+  interface LinkItem {
+    id: string
+    name: string
+    url: string
+    category: string
+    preset: boolean
+  }
+
+  const PRESETS: LinkItem[] = [
+    { id: 'p1', name: 'Lana Zagreb (Shopify)', url: 'https://admin.shopify.com/store/lana-zagreb', category: 'Lojas', preset: true },
+    { id: 'p2', name: 'Irina Bucuresti (Shopify)', url: 'https://admin.shopify.com/store/irina-bucuresti', category: 'Lojas', preset: true },
+    { id: 'p3', name: 'Blueprint Academy', url: 'https://www.blueprint-academy.com/dashboard', category: 'Ferramentas', preset: true },
+    { id: 'p4', name: 'Splite', url: 'https://app.sp-lite.com/', category: 'Ferramentas', preset: true },
+    { id: 'p5', name: 'Slash', url: 'https://www.slash.com/', category: 'Ferramentas', preset: true },
+    { id: 'p6', name: 'Discord', url: 'https://discord.com/channels/@me', category: 'Ferramentas', preset: true },
+    { id: 'p7', name: 'Meta Ads Manager', url: 'https://www.facebook.com/adsmanager', category: 'Anuncios', preset: true },
+    { id: 'p8', name: 'Meta Business Suite', url: 'https://business.facebook.com', category: 'Anuncios', preset: true },
+    { id: 'p9', name: 'Zoho Mail', url: 'https://mail.zoho.com', category: 'Ferramentas', preset: true },
+    { id: 'p10', name: 'Google Analytics', url: 'https://analytics.google.com', category: 'Ferramentas', preset: true },
+  ]
+
+  const [links, setLinks] = useState<LinkItem[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      try { return JSON.parse(saved) } catch {}
+    }
+    return PRESETS
+  })
+
+  const [showAdd, setShowAdd] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newUrl, setNewUrl] = useState('')
+  const [newCategory, setNewCategory] = useState('Geral')
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(links))
+  }, [links])
+
+  const addLink = () => {
+    if (!newName.trim() || !newUrl.trim()) return
+    let url = newUrl.trim()
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    const item: LinkItem = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+      name: newName.trim(),
+      url,
+      category: newCategory.trim() || 'Geral',
+      preset: false,
+    }
+    setLinks(prev => [...prev, item])
+    setNewName('')
+    setNewUrl('')
+    setShowAdd(false)
+  }
+
+  const removeLink = (id: string) => {
+    setLinks(prev => prev.filter(l => l.id !== id))
+  }
+
+  const editLink = (id: string) => {
+    const item = links.find(l => l.id === id)
+    if (!item) return
+    setEditingId(id)
+    setNewName(item.name)
+    setNewUrl(item.url)
+    setNewCategory(item.category)
+    setShowAdd(true)
+  }
+
+  const saveEdit = () => {
+    if (!editingId || !newName.trim() || !newUrl.trim()) return
+    let url = newUrl.trim()
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    setLinks(prev => prev.map(l => l.id === editingId ? { ...l, name: newName.trim(), url, category: newCategory.trim() || 'Geral' } : l))
+    setEditingId(null)
+    setNewName('')
+    setNewUrl('')
+    setShowAdd(false)
+  }
+
+  const categories = Array.from(new Set(links.map(l => l.category)))
+
+  return (
+    <div style={{ padding: '0 32px 32px', maxWidth: '1000px' }}>
+      <div className="topbar" style={{ marginBottom: '20px' }}>
+        <div>
+          <h1 className="page-title">Links</h1>
+          <p className="greeting">Atalhos para ferramentas e paginas importantes do negocio</p>
+        </div>
+        <button
+          onClick={() => { setShowAdd(true); setEditingId(null); setNewName(''); setNewUrl(''); setNewCategory('Geral') }}
+          className="refresh-btn"
+        >
+          {icons.plus} Adicionar link
+        </button>
+      </div>
+
+      {/* Add / Edit Modal */}
+      {showAdd && (
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(10, 11, 15, 0.8)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          }}
+          onClick={() => { if (!editingId) setShowAdd(false) }}
+        >
+          <form
+            onSubmit={(e) => { e.preventDefault(); editingId ? saveEdit() : addLink() }}
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--surface)', border: '1px solid var(--surface-border)',
+              borderRadius: '16px', padding: '28px', width: '440px',
+              display: 'flex', flexDirection: 'column', gap: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)'
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, letterSpacing: '-0.3px' }}>
+              {editingId ? 'Editar link' : 'Adicionar link'}
+            </h3>
+            <input
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              placeholder="Nome (ex: Shopify Admin)"
+              autoFocus
+              className="onboarding-input"
+            />
+            <input
+              value={newUrl}
+              onChange={e => setNewUrl(e.target.value)}
+              placeholder="URL (ex: https://admin.shopify.com)"
+              className="onboarding-input"
+            />
+            <input
+              value={newCategory}
+              onChange={e => setNewCategory(e.target.value)}
+              placeholder="Categoria (ex: Lojas, Anuncios)"
+              className="onboarding-input"
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '4px' }}>
+              <button type="button" onClick={() => { setShowAdd(false); setEditingId(null) }}
+                style={{
+                  background: 'transparent', border: '1px solid var(--surface-border)',
+                  borderRadius: '8px', color: 'var(--text-secondary)', fontSize: '13.5px',
+                  fontWeight: 500, padding: '10px 18px', cursor: 'pointer'
+                }}
+              >Cancelar</button>
+              <button type="submit" disabled={!newName.trim() || !newUrl.trim()}
+                style={{
+                  background: newName.trim() && newUrl.trim() ? 'var(--accent)' : 'var(--surface-border)',
+                  border: 'none', borderRadius: '8px', color: '#fff', fontSize: '13.5px',
+                  fontWeight: 600, padding: '10px 18px',
+                  cursor: newName.trim() && newUrl.trim() ? 'pointer' : 'not-allowed',
+                  opacity: newName.trim() && newUrl.trim() ? 1 : 0.6
+                }}
+              >{editingId ? 'Guardar' : 'Adicionar'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Links by Category */}
+      {categories.length === 0 ? (
+        <div style={{
+          textAlign: 'center', padding: '80px 40px', background: 'var(--surface)',
+          border: '1px solid var(--surface-border)', borderRadius: '16px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px'
+        }}>
+          <div style={{
+            width: '48px', height: '48px', borderRadius: '12px',
+            background: 'var(--accent-bg)', color: 'var(--accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            {icons.link}
+          </div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+            Ainda nao tens links guardados. Adiciona o primeiro.
+          </p>
+        </div>
+      ) : (
+        categories.map(cat => (
+          <div key={cat} style={{ marginBottom: '28px' }}>
+            <h3 style={{
+              fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)',
+              textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px'
+            }}>
+              {cat}
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {links.filter(l => l.category === cat).map(link => (
+                <div key={link.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: 'var(--surface)', border: '1px solid var(--surface-border)',
+                  borderRadius: '12px', padding: '14px 20px',
+                  transition: 'all 0.15s'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '10px',
+                      background: 'var(--accent-bg)', color: 'var(--accent)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                    }}>
+                      {icons.link}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)', marginBottom: '2px' }}>
+                        {link.name}
+                      </div>
+                      <div style={{
+                        fontSize: '12px', color: 'var(--text-muted)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        maxWidth: '400px'
+                      }}>
+                        {link.url}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                    <a href={link.url} target="_blank" rel="noopener noreferrer"
+                      className="quick-btn" style={{ fontSize: '12px' }}>
+                      {icons.box} Abrir
+                    </a>
+                    {!link.preset && (
+                      <>
+                        <button onClick={() => editLink(link.id)}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: '32px', height: '32px', border: '1px solid var(--surface-border)',
+                            background: 'transparent', borderRadius: '6px', color: 'var(--text-secondary)',
+                            cursor: 'pointer', fontSize: '13px', transition: 'all 0.15s'
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.color = 'var(--text)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                          title="Editar"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
+                        <button onClick={() => removeLink(link.id)}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: '32px', height: '32px', border: '1px solid var(--surface-border)',
+                            background: 'transparent', borderRadius: '6px', color: 'var(--text-secondary)',
+                            cursor: 'pointer', fontSize: '13px', transition: 'all 0.15s'
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#2d1b1b'; e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#ef4444' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--surface-border)' }}
+                          title="Remover"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+/* ── App (router) ──────────────────────────── */
 export default function App() {
   const [configured, setConfigured] = useState(() => !!localStorage.getItem('ec_configured'))
   const [loading, setLoading] = useState(true)
@@ -884,6 +1158,9 @@ function Dashboard() {
           <a className={`nav-item ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
             {Icons.memory}{!sidebarCollapsed && <span>Memoria</span>}
           </a>
+          <a className={`nav-item ${activeTab === 'links' ? 'active' : ''}`} onClick={() => setActiveTab('links')}>
+            {Icons.link}{!sidebarCollapsed && <span>Links</span>}
+          </a>
         </div>
 
         <div className="sidebar-footer">
@@ -1473,6 +1750,10 @@ function Dashboard() {
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === 'links' && (
+          <LinksPage api={API} icons={Icons} />
         )}
       </div>
     </div>
