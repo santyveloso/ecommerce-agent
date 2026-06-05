@@ -445,22 +445,23 @@ body {
 }
 .cal-muted { font-size: 11px; color: var(--text-muted); }
 
-/* ── calendar scroll contínuo ──────────────── */
+/* ── calendar scroll puro (sem snap) ───────── */
 .cal-scroll {
-  height: 260px;
-  overflow-y: scroll;
-  scroll-snap-type: y mandatory;
-  scroll-behavior: smooth;
+  max-height: 300px;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  margin-bottom: 8px;
+  padding-right: 4px;
 }
-.cal-scroll::-webkit-scrollbar { display: none; }
-.cal-month-page {
-  height: 100%;
-  scroll-snap-align: start;
-  display: flex;
-  flex-direction: column;
-  padding: 4px 0;
+.cal-scroll::-webkit-scrollbar { width: 4px; }
+.cal-scroll::-webkit-scrollbar-thumb { background: var(--surface-border); border-radius: 2px; }
+.cal-month-block {
+  margin-bottom: 12px;
+}
+.cal-month-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
 }
 .cal-grid-header {
   display: grid;

@@ -53,7 +53,7 @@ interface ChatSession {
 }
 
 const API = 'http://localhost:7777'
-const FALLBACK_MODELS = ['deepseek-v4-flash', 'gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4-20250514']
+const FALLBACK_MODELS = ['deepseek-v4-flash']
 
 /* ── SVG Icons ──────────────────────────────── */
 const Icons = {
@@ -290,46 +290,18 @@ function Dashboard() {
   const calScrollRef = useRef<HTMLDivElement>(null)
   const [calSince, setCalSince] = useState('')
   const [calUntil, setCalUntil] = useState('')
-  const [months, setMonths] = useState(() => {
+  const allMonths = (() => {
     const now = new Date(); const m = now.getMonth(); const y = now.getFullYear()
-    const prevM = m === 0 ? 11 : m - 1; const prevY = m === 0 ? y - 1 : y
-    const nextM = m === 11 ? 0 : m + 1; const nextY = m === 11 ? y + 1 : y
-    return [
-      { month: prevM, year: prevY, key: `${prevY}-${prevM}` },
-      { month: m, year: y, key: `${y}-${m}` },
-      { month: nextM, year: nextY, key: `${nextY}-${nextM}` },
-    ]
-  })
-  const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
-
-  // Centraliza no mês atual ao abrir
-  useEffect(() => {
-    if (showDatePicker && calScrollRef.current) {
-      requestAnimationFrame(() => {
-        if (calScrollRef.current) calScrollRef.current.scrollTop = calScrollRef.current.clientHeight
-      })
+    const months = []
+    for (let i = -6; i <= 5; i++) {
+      const total = m + i
+      const month = ((total % 12) + 12) % 12
+      const year = y + Math.floor((total) / 12)
+      months.push({ month, year, key: `${year}-${month}` })
     }
-  }, [showDatePicker])
-
-  const shiftMonths = useCallback((dir: 'prev' | 'next') => {
-    setMonths(prev => {
-      if (dir === 'prev') {
-        const first = prev[0]
-        const newM = first.month === 0 ? 11 : first.month - 1
-        const newY = first.month === 0 ? first.year - 1 : first.year
-        return [{ month: newM, year: newY, key: `${newY}-${newM}` }, ...prev.slice(0, 2)]
-      } else {
-        const last = prev[2]
-        const newM = last.month === 11 ? 0 : last.month + 1
-        const newY = last.month === 11 ? last.year + 1 : last.year
-        return [...prev.slice(1), { month: newM, year: newY, key: `${newY}-${newM}` }]
-      }
-    })
-    // Re-centra o scroll após render
-    requestAnimationFrame(() => {
-      if (calScrollRef.current) calScrollRef.current.scrollTop = calScrollRef.current.clientHeight
-    })
-  }, [])
+    return months
+  })()
+  const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
   const renderMonth = (month: number, year: number) => {
     const days = new Date(year, month + 1, 0).getDate()
@@ -501,6 +473,10 @@ function Dashboard() {
 
   const newFolder = useCallback((name: string, color?: string) => {
     setFolders(prev => [...prev, { id: uid(), name, expanded: true, color }])
+  }, [])
+
+  const renameFolder = useCallback((id: string, name: string) => {
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f))
   }, [])
 
   const deleteFolder = useCallback((id: string) => {
@@ -1275,32 +1251,24 @@ function Dashboard() {
                       }}>Este mês</button>
                     </div>
                     <div className="date-picker-custom">
-                      <div className="cal-nav">
-                        <button className="cal-nav-btn" onClick={() => shiftMonths('prev')}>{'‹'}</button>
-                        <span className="cal-nav-label">{MONTH_NAMES[months[1].month]} {months[1].year}</span>
-                        <button className="cal-nav-btn" onClick={() => shiftMonths('next')}>{'›'}</button>
-                      </div>
-                      <div className="cal-scroll" ref={calScrollRef} onScroll={e => {
-                        const el = e.currentTarget
-                        if (el.scrollTop <= 5) shiftMonths('prev')
-                        else if (el.scrollTop >= el.clientHeight * 2 - 5) shiftMonths('next')
-                      }}>
-                        {months.map(m => (
-                          <div key={m.key} className="cal-month-page">
-                            <div className="cal-grid-header">
-                              {['D','S','T','Q','Q','S','S'].map(d => <div key={d} className="cal-day-header">{d}</div>)}
-                            </div>
-                            <div className="cal-grid">
-                              {renderMonth(m.month, m.year)}
-                            </div>
+                    <div className="cal-scroll" ref={calScrollRef}>
+                      {allMonths.map(m => (
+                        <div key={m.key} className="cal-month-block">
+                          <div className="cal-month-label">{MONTH_NAMES[m.month]} {m.year}</div>
+                          <div className="cal-grid-header">
+                            {['D','S','T','Q','Q','S','S'].map(d => <div key={d} className="cal-day-header">{d}</div>)}
                           </div>
-                        ))}
-                      </div>
-                      <div className="cal-selection">
-                        {calSince && <span className="cal-badge">De: {calSince}</span>}
-                        {calUntil && <span className="cal-badge">Até: {calUntil}</span>}
-                        {!calSince && <span className="cal-muted">Clique num dia para começar</span>}
-                      </div>
+                          <div className="cal-grid">
+                            {renderMonth(m.month, m.year)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="cal-selection">
+                      {calSince && <span className="cal-badge">De: {calSince}</span>}
+                      {calUntil && <span className="cal-badge">Até: {calUntil}</span>}
+                      {!calSince && <span className="cal-muted">Clique num dia para começar</span>}
+                    </div>
                     </div>
                   </div>
                 )}
@@ -1423,6 +1391,7 @@ function Dashboard() {
                 onRenameSession={renameSession}
                 onTogglePin={togglePin}
                 onNewFolder={newFolder}
+                onRenameFolder={renameFolder}
                 onDeleteFolder={deleteFolder}
                 onSetFolderColor={setFolderColor}
                 onToggleFolder={toggleFolder}
