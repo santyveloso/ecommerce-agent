@@ -17,6 +17,7 @@ interface DashboardData {
   storeName: string; currency: string; products: number; lowStock: number
   ordersToday: number; revenueToday: string; pendingApprovals: number
   recentOrders: Order[]
+  roas?: number; spend?: number; orders?: number
 }
 interface Message {
   role: 'user' | 'assistant'
@@ -893,14 +894,13 @@ function Dashboard() {
           <div className="logo-icon">EC</div>
           {!sidebarCollapsed && (
             <>
-              <span className="logo-text">Ecommerce Agent</span>
+              <span className="logo-text">chat</span>
               <span className="logo-badge">v2</span>
             </>
           )}
         </div>
 
         <div className="sidebar-nav">
-          <div className="nav-category">Principal</div>
           <a className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
             {Icons.grid}{!sidebarCollapsed && <span>Dashboard</span>}
           </a>
@@ -910,16 +910,12 @@ function Dashboard() {
           <a className={`nav-item ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>
             {Icons.cart}{!sidebarCollapsed && <span>Pedidos</span>}
           </a>
-
-          <div className="nav-category">Marketing</div>
           <a className={`nav-item ${activeTab === 'emails' ? 'active' : ''}`} onClick={() => setActiveTab('emails')}>
             {Icons.mail}{!sidebarCollapsed && <span>Emails</span>}
           </a>
           <a className={`nav-item ${activeTab === 'studio' ? 'active' : ''}`} onClick={() => setActiveTab('studio')}>
             {Icons.studio}{!sidebarCollapsed && <span>Creative Studio</span>}
           </a>
-
-          <div className="nav-category">Ferramentas</div>
           <a className={`nav-item ${activeTab === 'automations' ? 'active' : ''}`} onClick={() => setActiveTab('automations')}>
             {Icons.zap}{!sidebarCollapsed && <span>Automacoes</span>}
           </a>
