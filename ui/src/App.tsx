@@ -157,12 +157,6 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => {
-    if (!configured) return
-    const t = setTimeout(() => setLoading(false), 300)
-    return () => clearTimeout(t)
-  }, [configured])
-
   if (loading) {
     return <div className="loading-screen"><div className="loader" /><span>A carregar...</span></div>
   }
@@ -195,24 +189,33 @@ function Dashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [period, setPeriod] = useState('today')
+  const metricsCache = useRef<Record<string, any>>({})
 
   const fetchDashboard = useCallback(async () => {
-    setDashboardLoading(true)
+    const isFirstLoad = !dashboardData
+    if (isFirstLoad) setDashboardLoading(true)
+
+    const preset = period === 'today' ? 'today' : period === 'week' ? 'last_7' : 'this_month'
+
     try {
-      const res = await fetch(`${API}/dashboard`)
-      if (res.ok) {
-        const data = await res.json()
-        // Merge with Meta Ads metrics (ROAS, spend, purchases)
-        try {
-          const metricsRes = await fetch(`${API}/dashboard/metrics?preset=${period === 'today' ? 'today' : period === 'week' ? 'last_7' : 'this_month'}`)
-          if (metricsRes.ok) {
-            const metrics = await metricsRes.json()
-            data.roas = metrics.roas
-            data.spend = metrics.spend
-            data.orders = metrics.orders
-            data.revenue = metrics.revenue
-          }
-        } catch {}
+      const [dashRes, metricsRes] = await Promise.all([
+        fetch(`${API}/dashboard`),
+        metricsCache.current[preset]
+          ? Promise.resolve({ ok: true, json: async () => metricsCache.current[preset] })
+          : fetch(`${API}/dashboard/metrics?preset=${preset}`),
+      ])
+
+      if (dashRes.ok) {
+        const data = await dashRes.json()
+        const metrics = metricsRes.ok ? await metricsRes.json() : null
+        if (metrics) {
+          metricsCache.current[preset] = metrics
+          data.roas = metrics.roas
+          data.spend = metrics.spend
+          data.orders = metrics.orders
+          data.revenue = metrics.revenue
+        }
+
         setDashboardData(data)
       }
     } catch (err) {
@@ -1076,9 +1079,11 @@ function Dashboard() {
               </div>
             </div>
 
-            {dashboardLoading ? (
+            {!dashboardData && dashboardLoading ? (
               <div className="loading-screen"><div className="loader" /></div>
-            ) : dashboardData ? (
+            ) : (
+              <div style={{ opacity: dashboardLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+              {dashboardData ? (
               <>
                 <div className="cards four-cols">
                   <div className="card accent-blue">
@@ -1160,6 +1165,8 @@ function Dashboard() {
               </>
             ) : (
               <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Sem dados disponiveis</div>
+            )}
+              </div>
             )}
           </div>
         )}
