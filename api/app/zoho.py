@@ -1,6 +1,7 @@
 """Zoho Mail API Client."""
 
 import time
+import re
 import httpx
 from datetime import datetime
 from typing import Optional, List, Dict
@@ -171,7 +172,6 @@ class ZohoClient:
                         date_str = str(received_time)
 
                 content_html = msg.get("content", "")
-                import re
                 content_text = re.sub(r"<[^>]+>", "", content_html).strip() if content_html else ""
 
                 emails.append({
@@ -298,6 +298,32 @@ class ZohoClient:
                 "threadId": thread_id,
                 "messages": messages,
             }
+
+    def _parse_message(self, msg: dict) -> dict:
+        """Parse a Zoho message object into the standard format."""
+        received_time = msg.get("receivedTime")
+        date_str = ""
+        if received_time:
+            try:
+                dt = datetime.fromtimestamp(int(received_time) / 1000)
+                date_str = dt.isoformat()
+            except Exception:
+                date_str = str(received_time)
+
+        content_html = msg.get("content", "")
+        content_text = re.sub(r"<[^>]+>", "", content_html).strip() if content_html else ""
+
+        return {
+            "id": str(msg.get("messageId", "")),
+            "from": msg.get("sender", msg.get("fromAddress", "Desconhecido")),
+            "subject": msg.get("subject", "(Sem Assunto)"),
+            "date": date_str,
+            "snippet": msg.get("summary", ""),
+            "content": content_text or msg.get("summary", ""),
+            "contentHtml": content_html,
+            "threadId": str(msg.get("threadId", "")) if msg.get("threadId") else None,
+            "to": msg.get("toAddress", ""),
+        }
 
     async def get_folders(self) -> list:
         """Lists all mail folders for the account."""

@@ -104,7 +104,7 @@ function AreaChart({
     const relX = mouseX - padding.left
     const idx = Math.round((relX / chartW) * (data.length - 1))
     const clamped = Math.max(0, Math.min(data.length - 1, idx))
-    onHover(points[clamped], points[clamped].x)
+    onHover(points[clamped], mouseX)
   }, [data, points, chartW, onHover, padding.left])
 
   const handleMouseLeave = useCallback(() => {
@@ -194,21 +194,24 @@ function AreaChart({
 
 /* ── Tooltip ──────────────────────────────────── */
 
-function ChartTooltip({ point, x, currency }: {
+function ChartTooltip({ point, x, containerWidth, currency }: {
   point: ChartPoint | null
   x: number
-  height: number
+  containerWidth: number
   currency: string
 }) {
   if (!point) return null
+  // x já está em coordenadas renderizadas
+  const tw = 140
+  const clampedX = Math.max(tw / 2, Math.min(containerWidth - tw / 2, x))
   return (
     <div
       className="chart-tooltip"
-      style={{ left: x, top: 12 }}
+      style={{ left: clampedX, top: 12 }}
     >
       <div className="tooltip-date">{formatDate(point.date)}</div>
       <div className="tooltip-value">{formatCurrency(point.revenue, currency)}</div>
-      <div className="tooltip-dot" style={{ left: x }} />
+      <div className="tooltip-dot" style={{ left: clampedX }} />
     </div>
   )
 }
@@ -221,6 +224,7 @@ export default function RevenueChart() {
   const [error, setError] = useState<string | null>(null)
   const [period, setPeriod] = useState(30)
   const [hoveredPoint, setHoveredPoint] = useState<{ point: ChartPoint | null; x: number }>({ point: null, x: 0 })
+  const wrapRef = useRef<HTMLDivElement>(null)
 
   const fetchData = useCallback(async (days: number) => {
     setLoading(true)
@@ -293,11 +297,11 @@ export default function RevenueChart() {
         )}
 
         {!loading && !error && chartData && chartData.data.length > 0 && (
-          <div className="chart-svg-wrap">
+          <div className="chart-svg-wrap" ref={wrapRef}>
             <ChartTooltip
               point={hoveredPoint.point}
               x={hoveredPoint.x}
-              height={280}
+              containerWidth={wrapRef.current?.clientWidth || 600}
               currency={chartData.currency}
             />
             <AreaChart

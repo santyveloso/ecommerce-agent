@@ -32,7 +32,7 @@ def list_jobs(include_disabled: bool = False) -> list[dict]:
                 jobs.append(current)
             current = {"id": m.group(1), "status": m.group(2)}
             continue
-        # Field lines: "    Name:      foo"
+        # Field lines: "    Name:      foo"  
         m = re.match(r"^\s+(\w[\w\s/()]+?):\s+(.+)", line)
         if m and current:
             key = m.group(1).strip().lower().replace(" ", "_")
@@ -55,10 +55,37 @@ def list_jobs(include_disabled: bool = False) -> list[dict]:
         m = re.match(r"^\s+Prompt:\s+(.+)", line)
         if m and current:
             current["prompt"] = m.group(1).strip()
+        # Deliver
+        m = re.match(r"^\s+Deliver:\s+(.+)", line)
+        if m and current:
+            current["deliver"] = m.group(1).strip()
 
     if current and "id" in current:
         jobs.append(current)
     return jobs
+
+
+def create_job(name: str, schedule: str, prompt: str, skills: str = "", deliver: str = "local") -> dict:
+    """Create a new cron job."""
+    args = ["cron", "create", "--schedule", schedule, "--prompt", prompt, "--name", name, "--deliver", deliver]
+    if skills:
+        args.extend(["--skills", skills])
+    out = _run(args)
+    # Extract job ID from output like "Created job abc123"
+    m = re.search(r"([a-f0-9]{6,})", out)
+    return {"id": m.group(1) if m else "unknown", "message": out.strip()}
+
+
+def delete_job(job_id: str) -> dict:
+    """Delete a cron job."""
+    out = _run(["cron", "remove", job_id])
+    return {"status": "deleted", "message": out.strip()}
+
+
+def run_job_now(job_id: str) -> dict:
+    """Trigger a cron job to run immediately."""
+    out = _run(["cron", "run", job_id])
+    return {"status": "triggered", "message": out.strip()}
 
 
 def pause_job(job_id: str) -> dict:

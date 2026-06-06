@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil
 import os
+import httpx
 
 from .config import Config
 from .approvals import ApprovalStore
@@ -130,6 +131,138 @@ async def health():
         "gateway": gateway_url or "offline",
         "shopify": shop_ok,
         "pending_approvals": len(approvals.list_pending()),
+    }
+
+
+@app.get("/status")
+async def status():
+    """Comprehensive status check for all integrations."""
+    import time
+
+    results = []
+
+    # 1) API
+    results.append({
+        "name": "API",
+        "status": "connected",
+        "detail": "Servidor operacional",
+        "action": None,
+        "action_label": None,
+    })
+
+    # 2) Shopify
+    shopify_status = "disconnected"
+    shopify_detail = "Não configurado"
+    shopify_action = "/setup/status"
+    shopify_action_label = "Configurar"
+    if config.shopify_store_domain and config.shopify_access_token:
+        try:
+            info = shopify.shop_info()
+            shopify_status = "connected"
+            shopify_detail = f"{info['name']} ({info['currencyCode']})"
+            shopify_action = None
+            shopify_action_label = None
+        except Exception as e:
+            shopify_status = "error"
+            shopify_detail = str(e)
+            shopify_action = "/setup/status"
+            shopify_action_label = "Reconfigurar"
+
+    results.append({
+        "name": "Shopify",
+        "status": shopify_status,
+        "detail": shopify_detail,
+        "action": shopify_action,
+        "action_label": shopify_action_label,
+    })
+
+    # 3) Meta Ads
+    meta_status = "disconnected"
+    meta_detail = "Token não configurado"
+    meta_action = None
+    meta_action_label = None
+    if config.meta_access_token:
+        try:
+            # Quick token validation — fetch account info
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    f"https://graph.facebook.com/v21.0/{config.meta_ad_account_ids[0] if config.meta_ad_account_ids else 'me'}",
+                    params={"access_token": config.meta_access_token, "fields": "name"},
+                )
+                if resp.status_code == 200:
+                    meta_status = "connected"
+                    data = resp.json()
+                    meta_detail = f"Conta: {data.get('name', config.meta_ad_account_ids[0])}"
+                else:
+                    meta_status = "error"
+                    meta_detail = f"HTTP {resp.status_code}: {resp.text[:100]}"
+        except Exception as e:
+            meta_status = "error"
+            meta_detail = str(e)
+
+    results.append({
+        "name": "Meta Ads",
+        "status": meta_status,
+        "detail": meta_detail,
+        "action": None,
+        "action_label": None,
+    })
+
+    # 4) Gateway / LLM
+    gateway_status = "disconnected"
+    gateway_detail = "Gateway não encontrado"
+    try:
+        url = await gateway.discover()
+        if url:
+            gateway_status = "connected"
+            gateway_detail = f"Online em {url}"
+        else:
+            gateway_detail = "Nenhum gateway encontrado nas portas testadas"
+    except Exception as e:
+        gateway_status = "error"
+        gateway_detail = str(e)
+
+    results.append({
+        "name": "Gateway (LLM)",
+        "status": gateway_status,
+        "detail": gateway_detail,
+        "action": None,
+        "action_label": None,
+    })
+
+    # 5) Zoho Mail
+    z = get_zoho()
+    zoho_status = "disconnected"
+    zoho_detail = "Não configurado"
+    try:
+        if z.is_demo():
+            zoho_status = "disconnected"
+            zoho_detail = "Modo demo — sem ligação real"
+        else:
+            email = await z.get_account_email()
+            zoho_status = "connected"
+            zoho_detail = f"{email}"
+    except Exception as e:
+        zoho_status = "error"
+        zoho_detail = str(e)
+
+    results.append({
+        "name": "Zoho Mail",
+        "status": zoho_status,
+        "detail": zoho_detail,
+        "action": None,
+        "action_label": None,
+    })
+
+    # Overall
+    connected_count = sum(1 for r in results if r["status"] == "connected")
+    total = len(results)
+
+    return {
+        "overall": "all_ok" if connected_count == total else "has_issues",
+        "connected": connected_count,
+        "total": total,
+        "services": results,
     }
 
 
@@ -971,6 +1104,7 @@ class AutomationCreateRequest(BaseModel):
     name: str
     schedule: str
     prompt: str
+    skills: str = ""
     deliver: str = "local"
 
 
@@ -1014,6 +1148,40 @@ async def resume_automation(job_id: str):
         return cron_mod.resume_job(job_id)
     except Exception as e:
         raise HTTPException(500, f"Erro ao reativar: {e}")
+
+
+@app.post("/automations", status_code=201)
+async def create_automation(req: AutomationCreateRequest):
+    """Cria uma nova automação (cron job)."""
+    try:
+        result = cron_mod.create_job(
+            name=req.name,
+            schedule=req.schedule,
+            prompt=req.prompt,
+            skills=req.skills or "",
+            deliver=req.deliver,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"Erro ao criar automação: {e}")
+
+
+@app.delete("/automations/{job_id}")
+async def delete_automation(job_id: str):
+    """Apaga uma automação."""
+    try:
+        return cron_mod.delete_job(job_id)
+    except Exception as e:
+        raise HTTPException(500, f"Erro ao apagar automação: {e}")
+
+
+@app.post("/automations/{job_id}/run")
+async def run_automation_now(job_id: str):
+    """Executa uma automação imediatamente."""
+    try:
+        return cron_mod.run_job_now(job_id)
+    except Exception as e:
+        raise HTTPException(500, f"Erro ao executar automação: {e}")
 
 
 # ── Memory ────────────────────────────────────────────────────────

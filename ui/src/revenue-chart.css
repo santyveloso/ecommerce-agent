@@ -6,6 +6,7 @@
   border-radius: 12px;
   padding: 20px 24px;
   margin-bottom: 16px;
+  max-width: 600px;
 }
 
 .chart-card-header {

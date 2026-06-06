@@ -4,7 +4,6 @@ import ChatInput from './ChatInput'
 import ChatMessages from './ChatMessages'
 import SessionSidebar from './SessionSidebar'
 import { useChatStream } from './useChatStream'
-import RevenueChart from './RevenueChart'
 import './revenue-chart.css'
 import './dashboard.css'
 import './chat.css'
@@ -79,6 +78,8 @@ const Icons = {
   moon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
   memory: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="7.5 19.79 7.5 14.6 3 12"/><polyline points="21 12 16.5 14.6 16.5 19.79"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
   calendar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  settings: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  activity: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
 }
 
 /* ── Helpers ──────────────────────────────────── */
@@ -174,22 +175,22 @@ export default function App() {
 
 /* ── Dashboard ──────────────────────────────── */
 function Dashboard() {
-  const [dark, setDark] = useState(() => {
+  const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('ec_theme')
-    if (saved) return saved === 'dark'
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
+    if (saved) return saved
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
   const [activeTab, setActiveTab] = useState('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(250)
+  const [sidebarWidth, setSidebarWidth] = useState(150)
   const [availableModels, setAvailableModels] = useState<string[]>(FALLBACK_MODELS)
   const [gatewayActiveModel, setGatewayActiveModel] = useState<string>('deepseek-v4-flash')
 
   // Theme
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
-    localStorage.setItem('ec_theme', dark ? 'dark' : 'light')
-  }, [dark])
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('ec_theme', theme)
+  }, [theme])
 
   // ── Fetch available models from gateway ────
   useEffect(() => {
@@ -225,6 +226,28 @@ function Dashboard() {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const dashCache = useRef<DashboardData | null>(null)
   const metricsCache = useRef<Record<string, any>>({})
+
+  // ── Status Page Data ─────────────────────
+  const [statusData, setStatusData] = useState<any>(null)
+  const [statusLoading, setStatusLoading] = useState(false)
+
+  const fetchStatus = useCallback(async () => {
+    setStatusLoading(true)
+    try {
+      const r = await fetch(`${API}/status`)
+      setStatusData(await r.json())
+    } catch {
+      setStatusData({ overall: 'error', connected: 0, total: 5, services: [] })
+    } finally {
+      setStatusLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'status' && !statusData) {
+      fetchStatus()
+    }
+  }, [activeTab, fetchStatus])
 
   // Fetch only /dashboard (cached — só atualiza no mount + refresh manual)
   const fetchDashboardData = useCallback(async () => {
@@ -723,101 +746,107 @@ function Dashboard() {
   }, [createNewSession, isStreaming, stopStreaming])
 
   // ── Studio State ────────────────────────
-  const [studioMessages, setStudioMessages] = useState<Message[]>(() => {
+  interface GeneratedImage {
+    id: string
+    prompt: string
+    url: string
+    timestamp: string
+  }
+
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>(() => {
     try {
-      const saved = localStorage.getItem('ec_studio_messages')
+      const saved = localStorage.getItem('ec_studio_images')
       if (saved) return JSON.parse(saved)
     } catch {}
-    return [{
-      role: 'assistant',
-      content: 'Bem-vindo ao **Creative Studio**! 🎨\n\nEu sou o **Hermes**, e estou ligado ao **Higgsfield** para te ajudar a criar imagens e vídeos promocionais premium para a tua loja.\n\nExperimenta fazer upload de imagens no painel lateral, usa `@` para as referenciar nas tuas mensagens e pede-me para:\n- **Criar uma imagem** (ex: *"Cria uma imagem de uma sapatilha desportiva em fundo cyberpunk"*)\n- **Gerar um vídeo** (ex: *"Anima esta @imagem para fazer um vídeo de 5 segundos"*)\n- **Modificar ou estender** conteúdo visual.'
-    }]
+    return []
   })
   const [studioInput, setStudioInput] = useState('')
   const [studioLoading, setStudioLoading] = useState(false)
-  const [studioUploads, setStudioUploads] = useState<{name: string, filename: string, url: string, size: number}[]>([])
-  const [uploadsLoading, setUploadsLoading] = useState(false)
-  const [duplicateAlert, setDuplicateAlert] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{x: number, y: number, filename: string} | null>(null)
-  const [_studioModel, _setStudioModel] = useState('higgsfield-v2-beta')
-  const studioMessagesEndRef = useRef<HTMLDivElement>(null)
-  const studioFileInputRef = useRef<HTMLInputElement>(null)
-  const [isDragOver, setIsDragOver] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
+  const [demoMode, setDemoMode] = useState(true)
+  const [cardSize, setCardSize] = useState<'S' | 'M' | 'L'>('S')
+  const [modalImage, setModalImage] = useState<GeneratedImage | null>(null)
 
-  useEffect(() => { localStorage.setItem('ec_studio_messages', JSON.stringify(studioMessages)) }, [studioMessages])
+  useEffect(() => { localStorage.setItem('ec_studio_images', JSON.stringify(generatedImages)) }, [generatedImages])
 
-  const fetchStudioUploads = useCallback(async () => {
-    setUploadsLoading(true)
-    try {
-      const res = await fetch(`${API}/studio/uploads`)
-      if (res.ok) {
-        const d = await res.json()
-        setStudioUploads(d.uploads || [])
-      }
-    } catch (err) { console.error("Erro ao carregar uploads", err) }
-    finally { setUploadsLoading(false) }
-  }, [])
+  const studioUploads = generatedImages  // re-use for gallery
+  const setStudioUploads = (fn: any) => {} // noop
 
-  useEffect(() => {
-    if (activeTab === 'studio' || activeTab === 'chat') fetchStudioUploads()
-  }, [activeTab, fetchStudioUploads])
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 
-  useEffect(() => {
-    if (activeTab === 'studio') studioMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [studioMessages, activeTab])
-
-  const uploadFile = async (file: File) => {
-    if (!file) return
-    const formData = new FormData()
-    formData.append('file', file)
-    setUploadsLoading(true)
-    setDuplicateAlert(null)
-    try {
-      const res = await fetch(`${API}/studio/upload`, { method: 'POST', body: formData })
-      if (res.status === 409) {
-        const errData = await res.json()
-        setDuplicateAlert(errData.detail || 'Esta imagem ja existe nos assets.')
-        return
-      }
-      if (!res.ok) throw new Error('Falha no upload')
-      const data = await res.json()
-      setStudioUploads(prev => [data, ...prev])
-    } catch { alert('Erro ao fazer upload da imagem.') }
-    finally { setUploadsLoading(false) }
+  const demoPlaceholder = (prompt: string, seed: number = 1): string => {
+    const colors = [
+      ['#667eea', '#764ba2'], ['#f093fb', '#f5576c'], ['#4facfe', '#00f2fe'],
+      ['#43e97b', '#38f9d7'], ['#fa709a', '#fee140'], ['#a18cd1', '#fbc2eb'],
+      ['#fccb90', '#d57eeb'], ['#e0c3fc', '#8ec5fc'], ['#f5576c', '#ff6f91'],
+      ['#30cfd0', '#330867'],
+    ]
+    const [c1, c2] = colors[seed % colors.length]
+    const shortPrompt = prompt.length > 60 ? prompt.slice(0, 57) + '...' : prompt
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+      <defs><linearGradient id="g${seed}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:${c1}"/><stop offset="100%" style="stop-color:${c2}"/></linearGradient></defs>
+      <rect width="400" height="400" fill="url(#g${seed})" rx="12"/>
+      <circle cx="200" cy="160" r="50" fill="rgba(255,255,255,0.15)"/>
+      <polygon points="200,100 250,180 150,180" fill="rgba(255,255,255,0.1)" transform="translate(0,20)"/>
+      <circle cx="120" cy="280" r="30" fill="rgba(255,255,255,0.08)"/>
+      <circle cx="280" cy="280" r="40" fill="rgba(255,255,255,0.06)"/>
+      <rect x="60" y="320" width="280" height="40" rx="8" fill="rgba(0,0,0,0.2)"/>
+      <text x="200" y="346" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-family="Inter,sans-serif" font-size="14" font-weight="500">${shortPrompt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</text>
+    </svg>`
   }
 
-  const handleStudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) uploadFile(file)
-    if (e.target) e.target.value = ''
-  }
-
-  const handleDropFile = (files: FileList | null) => {
-    const file = files?.[0]
-    if (file && file.type.startsWith('image/')) uploadFile(file)
-  }
-
-  const handleStudioSend = async (e: React.FormEvent) => {
+  const handleStudioSend = async (e: React.FormEvent, contextImage?: GeneratedImage | null) => {
     e.preventDefault()
     if (!studioInput.trim() || studioLoading) return
     const userText = studioInput.trim()
     setStudioInput('')
-    setShowSuggestions(false)
-    const userMsg: Message = { role: 'user', content: userText }
-    setStudioMessages(prev => [...prev, userMsg])
     setStudioLoading(true)
+
+    // Use passed contextImage or selectedImage state
+    const imgContext = contextImage || selectedImage
+    const promptContext = imgContext
+      ? `[Variation of: ${imgContext.prompt}] ${userText}`
+      : userText
+
+    setSelectedImage(null)
+
     try {
       const res = await fetch(`${API}/studio/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userText })
+        body: JSON.stringify({ message: promptContext })
       })
-      if (!res.ok) throw new Error('Erro na geração')
-      const d = await res.json()
-      setStudioMessages(prev => [...prev, { role: 'assistant', content: d.reply, media: d.media }])
+      if (res.ok) {
+        const d = await res.json()
+        const newImage: GeneratedImage = {
+          id: uid(),
+          prompt: userText,
+          url: d.media?.url || '',
+          timestamp: new Date().toISOString(),
+        }
+        setGeneratedImages(prev => [newImage, ...prev])
+      } else {
+        // Demo fallback — generate placeholder
+        const newImage: GeneratedImage = {
+          id: uid(),
+          prompt: userText,
+          url: '',
+          timestamp: new Date().toISOString(),
+        }
+        setGeneratedImages(prev => [newImage, ...prev])
+      }
     } catch {
-      setStudioMessages(prev => [...prev, { role: 'assistant', content: '❌ Ocorreu um erro ao gerar o conteúdo.' }])
-    } finally { setStudioLoading(false) }
+      const newImage: GeneratedImage = {
+        id: uid(),
+        prompt: userText,
+        url: '',
+        timestamp: new Date().toISOString(),
+      }
+      setGeneratedImages(prev => [newImage, ...prev])
+    } finally {
+      setStudioLoading(false)
+      setSelectedImage(null)
+    }
   }
 
   // ── Orders Tab ──────────────────────────
@@ -906,14 +935,18 @@ function Dashboard() {
     setEmailDetailLoading(true)
     setSelectedEmail(null)
     setEmailThread(null)
+    setEmailThreadLoading(true)
     try {
-      const res = await fetch(`${API}/zoho/emails/${id}`)
+      const res = await fetch(`${API}/zoho/emails/${id}/thread`)
       if (res.ok) {
         const data = await res.json()
-        setSelectedEmail(data)
+        setEmailThread(data.messages || [])
       }
-    } catch (err) { console.error('Email detail error', err) }
-    finally { setEmailDetailLoading(false) }
+    } catch (err) { console.error('Email thread error', err) }
+    finally {
+      setEmailDetailLoading(false)
+      setEmailThreadLoading(false)
+    }
   }
 
   const viewThread = async (id: string) => {
@@ -935,6 +968,7 @@ function Dashboard() {
       await fetch(`${API}/zoho/emails/${id}/read`, { method: 'POST' })
       setEmails(prev => prev.filter(e => e.id !== id))
       if (selectedEmail?.id === id) setSelectedEmail(null)
+      if (emailThread?.[0]?.id === id) setEmailThread(null)
     } catch (err) { console.error('Ignore error', err) }
     finally { setActionLoading(null) }
   }
@@ -945,6 +979,7 @@ function Dashboard() {
       await fetch(`${API}/zoho/emails/${id}/archive`, { method: 'POST' })
       setEmails(prev => prev.filter(e => e.id !== id))
       if (selectedEmail?.id === id) setSelectedEmail(null)
+      if (emailThread?.[0]?.id === id) setEmailThread(null)
     } catch (err) { console.error('Archive error', err) }
     finally { setActionLoading(null) }
   }
@@ -1065,7 +1100,14 @@ function Dashboard() {
   const [links, setLinks] = useState<{id: string; name: string; url: string}[]>(() => {
     try {
       const saved = localStorage.getItem('ec_links')
-      if (saved) return JSON.parse(saved)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_LINKS
+        // Merge: keep defaults + any custom links the user added
+        const defaultIds = new Set(DEFAULT_LINKS.map(d => d.id))
+        const customLinks = parsed.filter((p: any) => !defaultIds.has(p.id))
+        return [...DEFAULT_LINKS, ...customLinks]
+      }
     } catch {}
     return DEFAULT_LINKS
   })
@@ -1095,21 +1137,41 @@ function Dashboard() {
   }
 
   const LINK_GRADIENTS: Record<string, string> = {
-    'bp-academy': 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    'sp-lite': 'linear-gradient(135deg, #14b8a6, #10b981)',
-    'ads-manager': 'linear-gradient(135deg, #f97316, #ef4444)',
-    'ads-library': 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-    'google-analytics': 'linear-gradient(135deg, #f59e0b, #eab308)',
-    'shopify': 'linear-gradient(135deg, #059669, #10b981)',
+    'bp-academy': 'linear-gradient(135deg, #1e3a5f, #8b0000)',
+    'sp-lite': 'linear-gradient(135deg, #059669, #34d399)',
+    'ads-manager': 'linear-gradient(135deg, #1877F2, #1c4e80)',
+    'ads-library': 'linear-gradient(135deg, #06b6d4, #0284c7)',
+    'google-analytics': 'linear-gradient(135deg, #f59e0b, #dc2626)',
+    'shopify': 'linear-gradient(135deg, #7c3aed, #2563eb)',
   }
 
   const LINK_ICONS: Record<string, string> = {
     'bp-academy': 'BP',
     'sp-lite': 'SP',
-    'ads-manager': 'AM',
+    'ads-manager': 'M',
     'ads-library': 'AL',
     'google-analytics': 'GA',
     'shopify': 'SH',
+  }
+
+  const LINK_ICON_COLORS: Record<string, string> = {
+    'bp-academy': '#6b21a8',
+    'sp-lite': '#047857',
+    'ads-manager': '#1d4ed8',
+    'ads-library': '#0284c7',
+    'google-analytics': '#b45309',
+    'shopify': '#5b21b6',
+  }
+
+  const getIconColor = (id: string) => LINK_ICON_COLORS[id] || 'var(--accent)'
+
+  const getFaviconUrl = (url: string) => {
+    try {
+      const domain = new URL(url).hostname
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
+    } catch {
+      return ''
+    }
   }
 
   const getGradient = (id: string, idx: number) => {
@@ -1221,46 +1283,37 @@ function Dashboard() {
   // ── Sidebar resize ──────────────────────
   const isResizing = useRef(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
-  const [isTransitioning, setIsTransitioning] = useState(false)
   const COLLAPSE_THRESHOLD = 80
   const collapsedRef = useRef(sidebarCollapsed)
   collapsedRef.current = sidebarCollapsed
 
   const handleResizeStart = useCallback((_e: React.MouseEvent) => {
     isResizing.current = true
-    setIsTransitioning(false)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }, [])
 
-  // Toggle collapsed/expanded on double-click or icon click
-  const toggleSidebar = useCallback(() => {
-    setIsTransitioning(true)
-    if (sidebarCollapsed) {
-      // Expand to last known width (or default 200)
-      setSidebarCollapsed(false)
-      setSidebarWidth(prev => Math.max(prev, 190))
-    } else {
-      setSidebarCollapsed(true)
-    }
-    setTimeout(() => setIsTransitioning(false), 200)
-  }, [sidebarCollapsed])
-
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return
-      const w = Math.max(56, Math.min(400, e.clientX))
-      setSidebarWidth(w)
-      if (w < COLLAPSE_THRESHOLD && !collapsedRef.current) setSidebarCollapsed(true)
-      if (w > COLLAPSE_THRESHOLD + 20 && collapsedRef.current) setSidebarCollapsed(false)
+      const w = Math.max(56, Math.min(150, e.clientX))
+      if (w < COLLAPSE_THRESHOLD && !collapsedRef.current) {
+        setSidebarCollapsed(true)
+      } else if (w > COLLAPSE_THRESHOLD + 20 && collapsedRef.current) {
+        setSidebarCollapsed(false)
+      }
+      // When uncollapsed, never let width go below 140 so text fits
+      setSidebarWidth(collapsedRef.current ? w : Math.max(w, 130))
     }
     const handleMouseUp = () => {
       isResizing.current = false
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
-      // Snap to collapsed width fully if under threshold
-      if (sidebarWidth < COLLAPSE_THRESHOLD && !sidebarCollapsed) {
-        setSidebarCollapsed(true)
+      // Snap to proper width
+      if (sidebarCollapsed) {
+        setSidebarWidth(56)
+      } else if (sidebarWidth < 130) {
+        setSidebarWidth(130)
       }
     }
     document.addEventListener('mousemove', handleMouseMove)
@@ -1327,7 +1380,7 @@ function Dashboard() {
   return (
     <div className="app">
       {/* ── Sidebar ─────────────────────── */}
-      <div ref={sidebarRef} className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${isTransitioning ? 'transition' : ''}`} style={{ width: sidebarCollapsed ? 56 : sidebarWidth }}>
+      <div ref={sidebarRef} className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarCollapsed ? 56 : sidebarWidth }}>
         <div className="sidebar-logo">
           <div className="logo-icon">EC</div>
           {!sidebarCollapsed && (
@@ -1352,48 +1405,31 @@ function Dashboard() {
             {Icons.mail}{!sidebarCollapsed && <span>Emails</span>}
           </a>
           <a className={`nav-item ${activeTab === 'studio' ? 'active' : ''}`} onClick={() => setActiveTab('studio')}>
-            {Icons.studio}{!sidebarCollapsed && <span>Creative Studio</span>}
+            {Icons.studio}{!sidebarCollapsed && <span>Studio</span>}
           </a>
           <a className={`nav-item ${activeTab === 'automations' ? 'active' : ''}`} onClick={() => setActiveTab('automations')}>
-            {Icons.zap}{!sidebarCollapsed && <span>Automacoes</span>}
+            {Icons.zap}{!sidebarCollapsed && <span>Routines</span>}
           </a>
           <a className={`nav-item ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
-            {Icons.memory}{!sidebarCollapsed && <span>Memoria</span>}
+            {Icons.memory}{!sidebarCollapsed && <span>Memory</span>}
           </a>
           <a className={`nav-item ${activeTab === 'links' ? 'active' : ''}`} onClick={() => setActiveTab('links')}>
             {Icons.link}{!sidebarCollapsed && <span>Links</span>}
           </a>
+          <a className={`nav-item ${activeTab === 'status' ? 'active' : ''}`} onClick={() => setActiveTab('status')}>
+            {Icons.activity}{!sidebarCollapsed && <span>Status</span>}
+          </a>
         </div>
 
         <div className="sidebar-footer">
+          <a className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')} style={{ marginBottom: 8 }}>
+            {Icons.settings}{!sidebarCollapsed && <span>Settings</span>}
+          </a>
           <div className="status-row">
             <div className="status-dot" />
             {!sidebarCollapsed && <span>Conectado</span>}
           </div>
-          <button className="theme-toggle" onClick={() => setDark(!dark)} title={dark ? 'Light mode' : 'Dark mode'}>
-            {dark ? Icons.sun : Icons.moon}
-          </button>
         </div>
-
-        {/* Collapse toggle button */}
-        <button
-          onClick={toggleSidebar}
-          title={sidebarCollapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
-          style={{
-            position: 'absolute', bottom: 12,
-            right: sidebarCollapsed ? '50%' : -14,
-            transform: sidebarCollapsed ? 'translateX(50%)' : 'none',
-            background: 'var(--surface)', border: '1px solid var(--surface-border)',
-            borderRadius: '50%', width: 24, height: 24,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: 'var(--text-muted)', zIndex: 11, padding: 0,
-          }}
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-            style={{ transform: sidebarCollapsed ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
 
         {/* Resize handle — always visible */}
         <div className="resize-handle" onMouseDown={handleResizeStart} title="Arrastar para redimensionar" />
@@ -1509,39 +1545,6 @@ function Dashboard() {
                   </div>
                 )}
 
-                <RevenueChart />
-
-                <div className="sections">
-                  <div className="section">
-                    <div className="section-header">
-                      <h2>Pedidos Recentes</h2>
-                      <a className="more-link" onClick={() => setActiveTab('orders')}>Ver todos</a>
-                    </div>
-                    <table className="table">
-                      <thead><tr><th>Pedido</th><th>Cliente</th><th>Total</th><th>Status</th><th>Data</th></tr></thead>
-                      <tbody>
-                        {(dashboardData.recentOrders || []).map((o, i) => (
-                          <tr key={i}>
-                            <td><span className="order-name">{o.name}</span></td>
-                            <td>{o.customer}</td>
-                            <td>{o.total}</td>
-                            <td><span className={`status-tag ${o.status}`}>{o.status}</span></td>
-                            <td>{o.date}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="section">
-                    <div className="section-header"><h2>Acoes Rapidas</h2></div>
-                    <div className="quick-actions">
-                      <button className="quick-btn" onClick={() => setActiveTab('chat')}>{Icons.chat} Perguntar ao Agente</button>
-                      <button className="quick-btn" onClick={() => setActiveTab('studio')}>{Icons.studio} Criar Conteudo</button>
-                      <button className="quick-btn" onClick={() => setActiveTab('emails')}>{Icons.mail} Enviar Email</button>
-                      <button className="quick-btn" onClick={handleRefresh}>{Icons.refresh} Atualizar Dados</button>
-                    </div>
-                  </div>
-                </div>
               </>
             ) : (
               <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Sem dados disponiveis</div>
@@ -1555,7 +1558,7 @@ function Dashboard() {
           <div className="chat-layout" style={{ display: 'flex', height: '100vh' }}>
             {/* Chat Session Sidebar */}
             <div className="chat-session-sidebar" style={{
-              width: 260,
+              width: 220,
               borderRight: '1px solid var(--surface-border)',
               background: 'var(--bg-sidebar)',
               display: 'flex',
@@ -1799,7 +1802,7 @@ function Dashboard() {
                     ) : orderDetail ? (
                       <>
                         {/* Status */}
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                           <span className={`status-tag ${(orderDetail.status || '').toLowerCase()}`}>
                             {orderDetail.status || '-'}
                           </span>
@@ -1813,12 +1816,12 @@ function Dashboard() {
                           <div className="order-detail-label">Cliente</div>
                           <div className="order-detail-value">{orderDetail.customer}</div>
                           {orderDetail.email && (
-                            <div className="order-detail-value" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                            <div className="order-detail-value" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                               {orderDetail.email}
                             </div>
                           )}
                           {orderDetail.phone && (
-                            <div className="order-detail-value" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                            <div className="order-detail-value" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                               {orderDetail.phone}
                             </div>
                           )}
@@ -1827,7 +1830,7 @@ function Dashboard() {
                         {/* Total */}
                         <div className="order-detail-section">
                           <div className="order-detail-label">Total</div>
-                          <div className="order-detail-value" style={{ fontSize: 20, fontWeight: 700 }}>
+                          <div className="order-detail-value" style={{ fontSize: 16, fontWeight: 700 }}>
                             {parseFloat(orderDetail.total).toFixed(2)}{orderDetail.currency || '€'}
                           </div>
                         </div>
@@ -1854,12 +1857,12 @@ function Dashboard() {
                           {(orderDetail.items || []).map((item: any, i: number) => (
                             <div key={i} className="order-detail-item">
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontWeight: 500, fontSize: 13 }}>{item.title}</span>
+                                <span style={{ fontWeight: 500, fontSize: 12 }}>{item.title}</span>
                                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                   {item.price ? `${item.price}${orderDetail.currency || '€'}` : ''}
                                 </span>
                               </div>
-                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>
                                 Qty: {item.qty}{item.sku ? ` | SKU: ${item.sku}` : ''}
                               </div>
                             </div>
@@ -1870,7 +1873,7 @@ function Dashboard() {
                         {orderDetail.note && (
                           <div className="order-detail-section">
                             <div className="order-detail-label">Nota</div>
-                            <div className="order-detail-value" style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+                            <div className="order-detail-value" style={{ fontStyle: 'italic', color: 'var(--text-secondary)', fontSize: 11 }}>
                               {orderDetail.note}
                             </div>
                           </div>
@@ -1891,7 +1894,7 @@ function Dashboard() {
                           <div className="order-detail-section">
                             <div className="order-detail-label">Transacoes</div>
                             {orderDetail.transactions.slice(0, 3).map((tx: any, i: number) => (
-                              <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                              <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 2 }}>
                                 {tx.kind} — {tx.amount}{orderDetail.currency || '€'}
                                 {tx.gateway ? ` (${tx.gateway})` : ''}
                                 {tx.date ? ` — ${new Date(tx.date).toLocaleDateString('pt-PT')}` : ''}
@@ -1927,26 +1930,32 @@ function Dashboard() {
                 <h1 className="page-title">Emails</h1>
                 <p className="greeting">{emails.length} email{emails.length !== 1 ? 's' : ''} por ler de clientes</p>
               </div>
-              <button className="refresh-btn" onClick={() => { setSelectedEmail(null); setEmailThread(null); }}>
+              <button className="refresh-btn" onClick={async () => {
+                setSelectedEmail(null)
+                setEmailThread(null)
+                setEmailsLoading(true)
+                try {
+                  const res = await fetch(`${API}/zoho/emails`)
+                  if (res.ok) { const data = await res.json(); setEmails(data.emails || []) }
+                } catch {}
+                finally { setEmailsLoading(false) }
+              }}>
                 {Icons.refresh} Atualizar
               </button>
             </div>
 
-            {/* Detail / Thread View */}
-            {(selectedEmail || emailThread) && (
+            {/* Thread View */}
+            {(emailThread || emailThreadLoading) && (
               <div className="section" style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                   <button className="quick-btn" onClick={() => { setSelectedEmail(null); setEmailThread(null); }}>
                     {Icons.refresh} Voltar
                   </button>
-                  {selectedEmail && !emailThread && (
-                    <button className="quick-btn" onClick={() => viewThread(selectedEmail.id)} disabled={emailThreadLoading}>
-                      {emailThreadLoading ? 'A carregar...' : 'Ver thread completa'}
-                    </button>
-                  )}
                 </div>
 
-                {emailThread ? (
+                {emailThreadLoading && !emailThread ? (
+                  <div className="loading-screen"><div className="loader" /></div>
+                ) : emailThread ? (
                   /* Thread View */
                   <div>
                     <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>
@@ -1968,38 +1977,16 @@ function Dashboard() {
                         </div>
                       </div>
                     ))}
-                  </div>
-                ) : selectedEmail ? (
-                  /* Detail View */
-                  <div>
-                    {emailDetailLoading ? (
-                      <div className="loading-screen"><div className="loader" /></div>
-                    ) : (
-                      <div>
-                        <div style={{ marginBottom: 16 }}>
-                          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>{selectedEmail.subject || '(Sem Assunto)'}</div>
-                          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-secondary)' }}>
-                            <span><strong>De:</strong> {selectedEmail.from}</span>
-                            <span><strong>Para:</strong> {selectedEmail.to || 'nós'}</span>
-                            <span><strong>Data:</strong> {formatDate(selectedEmail.date)}</span>
-                          </div>
-                        </div>
-                        <div style={{
-                          padding: 20, background: 'var(--bg)',
-                          border: '1px solid var(--surface-border)', borderRadius: 12,
-                          fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                        }}>
-                          {selectedEmail.content || '(sem conteúdo)'}
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                          <button className="quick-btn" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', borderColor: 'transparent' }}
-                            onClick={() => ignoreEmail(selectedEmail.id)} disabled={actionLoading === selectedEmail.id}>
-                            {actionLoading === selectedEmail.id ? '...' : 'Ignorar'}
-                          </button>
-                          <button className="quick-btn" onClick={() => archiveEmail(selectedEmail.id)} disabled={actionLoading === selectedEmail.id}>
-                            {actionLoading === selectedEmail.id ? '...' : 'Arquivar'}
-                          </button>
-                        </div>
+                    {/* Action buttons */}
+                    {emailThread.length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                        <button className="quick-btn" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', borderColor: 'transparent' }}
+                          onClick={() => ignoreEmail(emailThread[0].id)} disabled={actionLoading === emailThread[0].id}>
+                          {actionLoading === emailThread[0].id ? '...' : 'Ignorar'}
+                        </button>
+                        <button className="quick-btn" onClick={() => archiveEmail(emailThread[0].id)} disabled={actionLoading === emailThread[0].id}>
+                          {actionLoading === emailThread[0].id ? '...' : 'Arquivar'}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -2008,7 +1995,7 @@ function Dashboard() {
             )}
 
             {/* Email List */}
-            {!selectedEmail && !emailThread && (
+            {!emailThread && !emailThreadLoading && (
               <div className="section">
                 {emailsLoading ? (
                   <div className="loading-screen"><div className="loader" /></div>
@@ -2060,211 +2047,244 @@ function Dashboard() {
         )}
 
         {activeTab === 'studio' && (
-          <div style={{ display: 'flex', height: '100vh' }}>
-            {/* Studio chat — LEFT */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-                {studioMessages.map((msg, i) => (
-                  <div key={i} className={`message-bubble ${msg.role}`} style={{ maxWidth: 800, margin: '0 auto 16px' }}>
-                    <div className={`message-avatar ${msg.role === 'user' ? 'user-avatar' : 'assistant-avatar'}`}>
-                      {msg.role === 'user'
-                        ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                        : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                      }
-                    </div>
-                    <div className="message-content">
-                      {msg.media && (
-                        <div className="message-media">
-                          {msg.media.type === 'image'
-                            ? <img src={msg.media.url} alt={msg.media.prompt || 'Generated'} />
-                            : <video src={msg.media.url} controls loop muted playsInline />
-                          }
-                          {msg.media.prompt && <span className="media-prompt">Prompt: {msg.media.prompt}</span>}
-                        </div>
-                      )}
-                      <MarkdownRenderer content={msg.content} />
-                    </div>
-                  </div>
-                ))}
-                {studioLoading && (
-                  <div className="message-bubble assistant">
-                    <div className="message-avatar assistant-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-                    <div className="message-content"><div className="typing-indicator"><span/><span/><span/></div></div>
-                  </div>
-                )}
-                <div ref={studioMessagesEndRef} />
-              </div>
-
-              {/* Studio input */}
-              <div style={{ padding: '16px 24px 20px', borderTop: '1px solid var(--surface-border)', background: 'var(--bg)', position: 'relative' }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <form onSubmit={handleStudioSend} style={{ flex: 1, position: 'relative' }}>
-                    <input
-                      id="studio-input-el"
-                      value={studioInput}
-                      onChange={handleStudioInputChange}
-                      onKeyDown={handleStudioInputKeyDown}
-                      placeholder="Descreva o conteudo que quer criar..."
-                      style={{
-                        width: '100%', padding: '12px 16px', paddingRight: 44,
-                        border: '1px solid var(--surface-border)', borderRadius: 10,
-                        background: 'var(--surface)', color: 'var(--text)', fontSize: 14,
-                        fontFamily: 'inherit', outline: 'none',
-                      }}
-                    />
-                    <button type="submit" disabled={studioLoading || !studioInput.trim()} style={{
-                      position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                      width: 32, height: 32, borderRadius: 8, border: 'none',
-                      background: studioInput.trim() ? 'var(--accent)' : 'var(--surface)',
-                      color: 'white', cursor: studioInput.trim() ? 'pointer' : 'default',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: 'all 0.15s',
-                    }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                    </button>
-
-                    {/* Studio suggestions */}
-                    {studioShowSuggestions && studioSuggestions.length > 0 && (
-                      <div className="mention-popup">
-                        {studioSuggestions.map((name, i) => (
-                          <button key={name} className={`mention-item ${i === studioActiveSuggestionIdx ? 'active' : ''}`} onClick={() => insertStudioSuggestion(name)}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                            {name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </form>
+          <>
+          <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+            {/* ── Main: Gallery + Prompt ── */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{
+                padding: '20px 28px', borderBottom: '1px solid var(--surface-border)',
+                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                minHeight: 56, gap: 12,
+              }}>
+                <div style={{ flexShrink: 0 }}>
+                  <h1 className="page-title" style={{ fontSize: 16, margin: 0 }}>Studio</h1>
+                  <p className="greeting" style={{ fontSize: 12, margin: 0 }}>Cria imagens com IA para as tuas lojas</p>
                 </div>
-              </div>
-            </div>
-
-            {/* Assets panel — RIGHT */}
-            <div style={{
-              width: 300, borderLeft: '1px solid var(--surface-border)',
-              background: 'var(--bg-sidebar)', display: 'flex', flexDirection: 'column',
-              flexShrink: 0,
-            }}>
-              <div style={{ padding: '16px 16px 0' }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Assets</h3>
-              </div>
-
-              {/* Drop zone */}
-              <div style={{ padding: '0 16px 12px' }}>
-                <div
-                  onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
-                  onDragLeave={() => setIsDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setIsDragOver(false); handleDropFile(e.dataTransfer.files); }}
-                  onClick={() => studioFileInputRef.current?.click()}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    padding: '24px 16px', border: `2px dashed ${isDragOver ? 'var(--accent)' : 'var(--surface-border)'}`,
-                    borderRadius: 10, cursor: 'pointer',
-                    color: isDragOver ? 'var(--accent)' : 'var(--text-muted)',
-                    fontSize: 13, transition: 'all 0.15s',
-                    background: isDragOver ? 'var(--accent-bg)' : 'transparent',
-                  }}
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-                  </svg>
-                  {isDragOver ? (
-                    <span style={{ fontWeight: 500 }}>Largar aqui</span>
-                  ) : (
-                    <>
-                      <span>Clique para upload</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ou arraste ficheiros aqui</span>
-                    </>
-                  )}
-                  <input ref={studioFileInputRef} type="file" accept="image/*" onChange={handleStudioUpload} style={{ display: 'none' }} />
-                </div>
-              </div>
-
-              {duplicateAlert && (
-                <div style={{ padding: '0 16px', marginBottom: 8 }}>
-                  <div className="onboarding-error" style={{ fontSize: 12 }}>{duplicateAlert}</div>
-                </div>
-              )}
-
-              {/* Gallery label */}
-              <div style={{ padding: '0 16px', marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  Galeria ({studioUploads.length})
-                </span>
-              </div>
-
-              {/* Gallery grid */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
-                {uploadsLoading && (
-                  <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
-                    <div className="loader" />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 2, background: 'var(--surface)', borderRadius: 8, padding: 2, border: '1px solid var(--surface-border)' }}>
+                    {(['S', 'M', 'L'] as const).map(size => (
+                      <button key={size} onClick={() => setCardSize(size)}
+                        style={{
+                          padding: '4px 10px', borderRadius: 6, border: 'none',
+                          background: cardSize === size ? 'var(--accent)' : 'transparent',
+                          color: cardSize === size ? '#fff' : 'var(--text-muted)',
+                          fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          transition: 'all 0.1s',
+                        }}>{size}</button>
+                    ))}
                   </div>
-                )}
-                {!uploadsLoading && studioUploads.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: 13 }}>
-                    Nenhum asset ainda
-                  </div>
-                )}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {studioUploads.map(asset => (
-                    <div key={asset.filename} style={{
-                      position: 'relative', borderRadius: 8, overflow: 'hidden',
-                      border: '1px solid var(--surface-border)',
-                      transition: 'border-color 0.15s',
-                    }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--surface-border)' }}
-                    >
-                      <img
-                        src={asset.url} alt={asset.name}
-                        style={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }}
-                        onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, filename: asset.filename }); }}
-                      />
-                      <p style={{
-                        fontSize: 11, padding: '4px 6px', color: 'var(--text)', fontWeight: 500,
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      }}>{asset.name}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Right-click context menu */}
-            {contextMenu && (
-              <>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setContextMenu(null)} />
-                <div style={{
-                  position: 'fixed', top: contextMenu.y, left: contextMenu.x,
-                  background: 'var(--surface)', border: '1px solid var(--surface-border)',
-                  borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.25)', zIndex: 999,
-                  minWidth: 160, padding: 4, overflow: 'hidden',
-                }}>
-                  <button onClick={() => { deleteAsset(contextMenu.filename); setContextMenu(null); }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px',
-                      fontSize: 13, background: 'none', border: 'none', color: 'var(--danger)',
-                      cursor: 'pointer', borderRadius: 6, transition: 'background 0.1s',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                    Eliminar
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{generatedImages.length} gerada{generatedImages.length !== 1 ? 's' : ''}</span>
+                  <button onClick={() => setGeneratedImages([])}
+                    className="quick-btn" style={{ fontSize: 11, padding: '5px 10px', color: 'var(--danger)' }}>
+                    Limpar
                   </button>
                 </div>
-              </>
-            )}
+              </div>
+
+              {/* Gallery */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
+                {generatedImages.length === 0 ? (
+                  <div style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexDirection: 'column', gap: 16, paddingTop: 80, color: 'var(--text-muted)',
+                  }}>
+                    <div style={{
+                      width: 64, height: 64, borderRadius: 16,
+                      background: 'var(--surface)', border: '1px solid var(--surface-border)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>Nenhuma imagem gerada</p>
+                      <p style={{ fontSize: 12 }}>Escreve um prompt abaixo para comecar</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: cardSize === 'S' ? 'repeat(auto-fill, minmax(160px, 1fr))'
+                      : cardSize === 'M' ? 'repeat(auto-fill, minmax(220px, 1fr))'
+                      : 'repeat(auto-fill, minmax(320px, 1fr))',
+                    gap: cardSize === 'S' ? 10 : cardSize === 'M' ? 14 : 20,
+                  }}>
+                    {generatedImages.map((img, i) => (
+                      <div key={img.id} onClick={() => setModalImage(img)}
+                        style={{
+                          background: 'var(--surface)',
+                          border: '1px solid var(--surface-border)',
+                          borderRadius: 10, overflow: 'hidden', cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--surface-border)' }}>
+                        <div style={{
+                          width: '100%', aspectRatio: '1', overflow: 'hidden',
+                          background: 'var(--bg)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {img.url ? (
+                            <img src={img.url} alt={img.prompt}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <img src={`data:image/svg+xml,${encodeURIComponent(demoPlaceholder(img.prompt, i))}`}
+                              alt={img.prompt}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          )}
+                        </div>
+                        <div style={{ padding: cardSize === 'S' ? '6px 8px' : '10px 12px' }}>
+                          <p style={{
+                            fontSize: cardSize === 'S' ? 10 : 12,
+                            color: 'var(--text)', lineHeight: 1.4,
+                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          }}>
+                            {img.prompt}
+                          </p>
+                          {cardSize !== 'S' && (
+                            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                              {new Date(img.timestamp).toLocaleString('pt-PT')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {studioLoading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+                    <div className="loader" style={{ width: 20, height: 20 }} />
+                    A gerar imagem...
+                  </div>
+                )}
+              </div>
+
+              {/* Prompt bar */}
+              <div style={{
+                padding: '16px 28px 20px', borderTop: '1px solid var(--surface-border)',
+                background: 'var(--bg)',
+              }}>
+                <form onSubmit={handleStudioSend} style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      value={studioInput}
+                      onChange={handleStudioInputChange}
+                      placeholder={selectedImage ? 'Descreve a variacao que queres...' : 'Descreve a imagem que queres criar...'}
+                      style={{
+                        width: '100%', padding: '12px 16px',
+                        border: `1px solid ${selectedImage ? 'var(--accent)' : 'var(--surface-border)'}`,
+                        borderRadius: 10, background: 'var(--surface)', color: 'var(--text)',
+                        fontSize: 14, fontFamily: 'inherit', outline: 'none',
+                      }}
+                    />
+                  </div>
+                  <button type="submit" disabled={studioLoading || !studioInput.trim()}
+                    style={{
+                      padding: '12px 24px', borderRadius: 10, border: 'none',
+                      background: studioInput.trim() ? 'var(--accent)' : 'var(--surface)',
+                      color: studioInput.trim() ? '#fff' : 'var(--text-muted)',
+                      fontSize: 14, fontWeight: 600, cursor: studioInput.trim() ? 'pointer' : 'default',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      transition: 'all 0.15s',
+                    }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                    Gerar
+                  </button>
+                </form>
+              </div>
+            </div>
           </div>
+
+          {/* ── Image Modal ── */}
+          {modalImage && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 1000,
+              background: 'rgba(0,0,0,0.75)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 24,
+            }} onClick={() => setModalImage(null)}>
+              <div style={{
+                display: 'flex', height: '100%', maxHeight: '90vh',
+                width: '100%', maxWidth: 1400,
+                background: 'var(--surface)',
+                borderRadius: 12, overflow: 'hidden',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+              }} onClick={e => e.stopPropagation()}>
+                {/* Image — left side */}
+                <div style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'var(--bg)', minWidth: 0,
+                }}>
+                  <img
+                    src={modalImage.url || `data:image/svg+xml,${encodeURIComponent(demoPlaceholder(modalImage.prompt, generatedImages.indexOf(modalImage)))}`}
+                    alt={modalImage.prompt}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+                {/* Sidebar — right side */}
+                <div style={{
+                  width: 340, display: 'flex', flexDirection: 'column',
+                  borderLeft: '1px solid var(--surface-border)',
+                }}>
+                  <div style={{ padding: '16px', borderBottom: '1px solid var(--surface-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: 13, fontWeight: 600 }}>Prompt</h3>
+                    <button onClick={() => setModalImage(null)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                  <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--surface-border)' }}>
+                    <p style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{modalImage.prompt}</p>
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+                      {new Date(modalImage.timestamp).toLocaleString('pt-PT')}
+                    </p>
+                  </div>
+                  <div style={{ flex: 1, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Variacao</p>
+                    <form onSubmit={e => {
+                      e.preventDefault()
+                      if (!studioInput.trim()) return
+                      setModalImage(null)
+                      handleStudioSend(e, modalImage)
+                    }} style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                      <textarea
+                        value={studioInput}
+                        onChange={e => setStudioInput(e.target.value)}
+                        placeholder="Descreve a variacao..."
+                        style={{
+                          flex: 1, width: '100%', padding: '10px 12px',
+                          border: '1px solid var(--surface-border)', borderRadius: 8,
+                          background: 'var(--bg)', color: 'var(--text)',
+                          fontSize: 12, fontFamily: 'inherit', outline: 'none',
+                          resize: 'none', minHeight: 100,
+                        }}
+                      />
+                      <button type="submit" disabled={studioLoading || !studioInput.trim()}
+                        style={{
+                          padding: '10px 16px', borderRadius: 8, border: 'none',
+                          background: studioInput.trim() ? 'var(--accent)' : 'var(--surface)',
+                          color: studioInput.trim() ? '#fff' : 'var(--text-muted)',
+                          fontSize: 13, fontWeight: 600, cursor: studioInput.trim() ? 'pointer' : 'default',
+                        }}>
+                        {studioLoading ? 'A gerar...' : 'Gerar'}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {activeTab === 'automations' && (
           <div style={{ padding: '32px 40px' }}>
             <div className="topbar">
               <div>
-                <h1 className="page-title">Automacoes</h1>
+                <h1 className="page-title">Routines</h1>
                 <p className="greeting">Cron jobs e tarefas agendadas do Hermes</p>
               </div>
               <div className="topbar-actions">
@@ -2395,69 +2415,395 @@ function Dashboard() {
         )}
 
         {activeTab === 'memory' && (
-          <div style={{ padding: '32px 40px' }}>
-            <div className="topbar">
-              <div>
-                <h1 className="page-title">Memoria</h1>
-                <p className="greeting">Fatos e preferencias que o agente lembra entre conversas</p>
+          <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', padding: 0 }}>
+            {/* ── File List Sidebar ── */}
+            <div style={{
+              width: 280, flexShrink: 0, borderRight: '1px solid var(--surface-border)',
+              background: 'var(--bg-sidebar)', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            }}>
+              {/* Header */}
+              <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid var(--surface-border)' }}>
+                <h1 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Memory</h1>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{memoryEntries.length} ficheiro{memoryEntries.length !== 1 ? 's' : ''}</p>
               </div>
-            </div>
-            <div className="section" style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Adicionar Memoria</h2>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <input
-                  value={newMemory}
-                  onChange={e => setNewMemory(e.target.value)}
-                  placeholder="Ex: A loja foca em produtos sustentaveis..."
-                  style={{
-                    flex: 1, padding: '10px 14px', border: '1px solid var(--surface-border)',
-                    borderRadius: 8, background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
-                    fontFamily: 'inherit', outline: 'none',
-                  }}
-                />
-                <button className="onboarding-btn" style={{ padding: '8px 20px', fontSize: 13 }} onClick={addMemory} disabled={!newMemory.trim()}>Adicionar</button>
+
+              {/* Quick add */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--surface-border)' }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    value={newMemory}
+                    onChange={e => setNewMemory(e.target.value)}
+                    placeholder="Adicionar nota rapida..."
+                    style={{
+                      flex: 1, padding: '8px 12px', border: '1px solid var(--surface-border)',
+                      borderRadius: 8, background: 'var(--surface)', color: 'var(--text)',
+                      fontSize: 12, fontFamily: 'inherit', outline: 'none',
+                    }}
+                    onKeyDown={e => { if (e.key === 'Enter') addMemory() }}
+                  />
+                  <button onClick={addMemory} disabled={!newMemory.trim()}
+                    style={{
+                      padding: '8px 12px', borderRadius: 8, border: 'none',
+                      background: newMemory.trim() ? 'var(--accent)' : 'var(--surface)',
+                      color: newMemory.trim() ? '#fff' : 'var(--text-muted)',
+                      fontSize: 12, fontWeight: 600, cursor: newMemory.trim() ? 'pointer' : 'default',
+                    }}>
+                    + Add
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="section">
-              <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Memorias Existentes</h2>
-              {memoryLoading ? (
-                <div className="loading-screen"><div className="loader" /></div>
-              ) : memoryEntries.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma memoria guardada ainda.</p>
-              ) : (
-                memoryEntries.map((entry, i) => (
-                  <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid var(--surface-border)' }}>
-                    <p style={{ fontSize: 13, color: 'var(--text)' }}>{entry.content || entry.text || JSON.stringify(entry)}</p>
+
+              {/* File list */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+                {memoryLoading ? (
+                  <div style={{ padding: 40, textAlign: 'center' }}><div className="loader" /></div>
+                ) : memoryEntries.length === 0 ? (
+                  <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                    Nenhum ficheiro de memoria.
                   </div>
-                ))
+                ) : (
+                  (() => {
+                    const groups: Record<string, any[]> = { long_term: [], daily: [], reference: [] }
+                    memoryEntries.forEach((f: any) => {
+                      const t = f.type || 'daily'
+                      if (groups[t]) groups[t].push(f)
+                      else groups.daily.push(f)
+                    })
+                    const labels: Record<string, string> = {
+                      long_term: 'Longo Prazo',
+                      daily: 'Diarios',
+                      reference: 'Referencia',
+                    }
+                    const colors: Record<string, string> = {
+                      long_term: 'var(--accent)',
+                      daily: 'var(--success)',
+                      reference: 'var(--warning)',
+                    }
+                    return Object.entries(groups).map(([type, files]) => {
+                      if (files.length === 0) return null
+                      return (
+                        <div key={type}>
+                          <div style={{
+                            padding: '8px 20px 4px', fontSize: 10, fontWeight: 600,
+                            textTransform: 'uppercase', letterSpacing: '0.06em',
+                            color: 'var(--text-muted)',
+                          }}>
+                            <span style={{
+                              display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                              background: colors[type] || 'var(--text-muted)', marginRight: 6,
+                              verticalAlign: 'middle',
+                            }} />
+                            {labels[type] || type}
+                          </div>
+                          {files.map((file: any, fi: number) => (
+                            <div key={file.name || fi} onClick={() => loadMemoryFile(file)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                padding: '10px 20px', cursor: 'pointer', margin: '0 8px',
+                                borderRadius: 8,
+                                background: selectedMemoryFile?.name === file.name ? 'var(--surface)' : 'transparent',
+                                color: selectedMemoryFile?.name === file.name ? 'var(--text)' : 'var(--text-secondary)',
+                                transition: 'all 0.1s',
+                              }}
+                              onMouseEnter={e => { if (selectedMemoryFile?.name !== file.name) e.currentTarget.style.background = 'var(--surface-hover)' }}
+                              onMouseLeave={e => { if (selectedMemoryFile?.name !== file.name) e.currentTarget.style.background = 'transparent' }}>
+                              <div style={{
+                                width: 28, height: 28, borderRadius: 6,
+                                background: selectedMemoryFile?.name === file.name ? 'var(--accent-bg)' : 'var(--surface)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                color: selectedMemoryFile?.name === file.name ? 'var(--accent)' : 'var(--text-muted)',
+                              }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                  <polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/>
+                                </svg>
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {file.name}
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                                  {file.size ? `${(file.size / 1024).toFixed(1)} KB` : '-'}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                {file.modified ? new Date(file.modified).toLocaleDateString('pt-PT', { month: 'short', day: 'numeric' }) : ''}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })
+                  })()
+                )}
+              </div>
+            </div>
+
+            {/* ── Content Area ── */}
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {!selectedMemoryFile ? (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, color: 'var(--text-muted)' }}>
+                  <div style={{
+                    width: 56, height: 56, borderRadius: 16,
+                    background: 'var(--surface)', border: '1px solid var(--surface-border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>Seleciona um ficheiro</p>
+                    <p style={{ fontSize: 12 }}>Escolhe um ficheiro de memoria para ver ou editar</p>
+                  </div>
+                </div>
+              ) : memoryFileLoading ? (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div className="loader" />
+                </div>
+              ) : (
+                <>
+                  {/* Content header */}
+                  <div style={{
+                    padding: '16px 24px', borderBottom: '1px solid var(--surface-border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: 'var(--bg)',
+                  }}>
+                    <div>
+                      <h2 style={{ fontSize: 14, fontWeight: 600 }}>{selectedMemoryFile.name}</h2>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                        {selectedMemoryFile.type === 'long_term' ? 'Memoria de longo prazo' : selectedMemoryFile.type === 'daily' ? 'Nota diaria' : 'Referencia'}
+                        {' · '}{selectedMemoryFile.modified ? new Date(selectedMemoryFile.modified).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {memoryEditMode ? (
+                        <>
+                          <button onClick={() => { setMemoryEditMode(false); setMemoryEditContent(memoryFileContent) }}
+                            className="quick-btn" style={{ fontSize: 12, padding: '6px 12px' }}>
+                            Cancelar
+                          </button>
+                          <button onClick={saveMemoryFile} disabled={memorySaving}
+                            style={{
+                              padding: '6px 16px', borderRadius: 8, border: 'none',
+                              background: 'var(--accent)', color: '#fff',
+                              fontSize: 12, fontWeight: 600, cursor: memorySaving ? 'default' : 'pointer',
+                              opacity: memorySaving ? 0.7 : 1,
+                            }}>
+                            {memorySaving ? 'A guardar...' : 'Guardar'}
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setMemoryEditMode(true)}
+                          className="quick-btn" style={{ fontSize: 12, padding: '6px 12px' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: 'middle' }}>
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                          Editar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Content body */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', background: 'var(--bg)' }}>
+                    {memoryEditMode ? (
+                      <textarea
+                        value={memoryEditContent}
+                        onChange={e => setMemoryEditContent(e.target.value)}
+                        style={{
+                          width: '100%', minHeight: 'calc(100% - 40px)',
+                          padding: 16, border: '1px solid var(--surface-border)',
+                          borderRadius: 10, background: 'var(--surface)',
+                          color: 'var(--text)', fontSize: 13, lineHeight: 1.6,
+                          fontFamily: 'JetBrains Mono, monospace', outline: 'none',
+                          resize: 'vertical',
+                        }}
+                      />
+                    ) : (
+                      <div className="memory-markdown" style={{ maxWidth: 720 }}>
+                        <MarkdownRenderer content={memoryFileContent} />
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>
         )}
 
+        {activeTab === 'status' && (
+          <div style={{ padding: '32px 40px' }}>
+            <div className="topbar" style={{ marginBottom: 32 }}>
+              <div>
+                <h1 className="page-title">Status</h1>
+                <p className="greeting">Estado das conexoes e servicos</p>
+              </div>
+              <div className="topbar-actions">
+                <button className="refresh-btn" onClick={fetchStatus} disabled={statusLoading}>
+                  {Icons.refresh} {statusLoading ? 'A verificar...' : 'Atualizar'}
+                </button>
+              </div>
+            </div>
+
+            {!statusData && (
+              <div className="loading-screen" style={{ height: 200 }}><div className="loader" /></div>
+            )}
+
+            {statusLoading && statusData && (
+              <div style={{ textAlign: 'center', padding: '8px 0 16px', fontSize: 13, color: 'var(--text-muted)' }}>A verificar conexoes...</div>
+            )}
+
+            {statusData && (
+              <>
+                {/* ── Overall Status Hero ── */}
+                <div className="status-hero" style={{
+                  background: statusData.overall === 'all_ok' ? 'var(--success-bg)' : 'var(--warning-bg)',
+                  border: '1px solid',
+                  borderColor: statusData.overall === 'all_ok' ? 'var(--success)' : 'var(--warning)',
+                }}>
+                  <div className="status-hero-left">
+                    <div className="status-hero-ring" style={{
+                      background: statusData.overall === 'all_ok' ? 'var(--success)' : 'var(--warning)',
+                      boxShadow: statusData.overall === 'all_ok'
+                        ? '0 0 20px rgba(34,197,94,0.4)'
+                        : '0 0 20px rgba(234,179,8,0.4)',
+                    }}>
+                      <span className="status-hero-count">{statusData.connected}</span>
+                      <span className="status-hero-total">/ {statusData.total}</span>
+                    </div>
+                  </div>
+                  <div className="status-hero-right">
+                    <div className="status-hero-title">
+                      {statusData.overall === 'all_ok' ? 'All Systems Go' : 'Issues Detected'}
+                    </div>
+                    <div className="status-hero-sub">
+                      {statusData.overall === 'all_ok'
+                        ? 'Todos os servicos estao operacionais'
+                        : `${statusData.total - statusData.connected} servicos com problemas`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Service Cards Grid ── */}
+                <div className="status-grid">
+                  {(() => {
+                    const SERVICE_ICONS: Record<string, any> = {
+                      'API': Icons.cpu,
+                      'Shopify': Icons.cart,
+                      'Meta Ads': Icons.trending,
+                      'Gateway (LLM)': Icons.zap,
+                      'Zoho Mail': Icons.mail,
+                    }
+                    const SERVICE_COLORS: Record<string, string> = {
+                      'API': 'var(--chart-blue)',
+                      'Shopify': 'var(--chart-green, #22c55e)',
+                      'Meta Ads': 'var(--chart-purple)',
+                      'Gateway (LLM)': 'var(--chart-cyan)',
+                      'Zoho Mail': 'var(--warning)',
+                    }
+                    return statusData.services.map((svc: any, i: number) => {
+                      const icon = SERVICE_ICONS[svc.name]
+                      const accent = SERVICE_COLORS[svc.name] || 'var(--accent)'
+                      const isOk = svc.status === 'connected'
+                      return (
+                        <div key={i} className="status-card">
+                          {/* Top icon + status dot */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+                            <div className="status-card-icon" style={{ background: accent }}>
+                              {icon}
+                            </div>
+                            <div className="status-card-pulse" style={{
+                              background: isOk ? 'var(--success)' : svc.status === 'error' ? 'var(--danger)' : 'var(--text-muted)',
+                              animation: isOk ? 'pulse 2s infinite' : 'none',
+                            }} />
+                          </div>
+
+                          {/* Name */}
+                          <div className="status-card-name">{svc.name}</div>
+
+                          {/* Detail */}
+                          <div className="status-card-detail">{svc.detail}</div>
+
+                          {/* Status badge */}
+                          <div className="status-card-badge" style={{
+                            background: isOk ? 'var(--success-bg)'
+                              : svc.status === 'error' ? 'var(--danger-bg)'
+                              : 'var(--surface-hover)',
+                            color: isOk ? 'var(--success)'
+                              : svc.status === 'error' ? 'var(--danger)'
+                              : 'var(--text-muted)',
+                          }}>
+                            {svc.status === 'connected' ? 'Online'
+                              : svc.status === 'error' ? 'Erro'
+                              : svc.status === 'disconnected' ? 'Offline'
+                              : svc.status}
+                          </div>
+                        </div>
+                      )
+                    })
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {activeTab === 'links' && (
           <div style={{ padding: '32px 40px' }}>
-            <div className="topbar" style={{ marginBottom: 24 }}>
+            {/* ── Header ── */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 32, gap: 16,
+            }}>
               <div>
-                <h1 className="page-title">Links</h1>
-                <p className="greeting">Atalhos rápidos para as tuas ferramentas</p>
+                <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>Links</h1>
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                  Atalhos rápidos para as tuas ferramentas
+                </p>
               </div>
-              <button className="quick-btn" onClick={() => setShowAddLink(!showAddLink)} style={{ fontSize: 13, padding: '8px 16px' }}>
-                {Icons.plus} {showAddLink ? 'Fechar' : 'Adicionar Link'}
+              <button
+                onClick={() => setShowAddLink(!showAddLink)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '10px 20px', borderRadius: 12, border: 'none',
+                  background: showAddLink ? 'var(--surface)' : 'var(--accent)',
+                  color: showAddLink ? 'var(--text)' : '#fff',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  boxShadow: showAddLink ? 'none' : '0 2px 8px rgba(99,102,241,0.3)',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => { if (!showAddLink) (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)' }}
+                onMouseLeave={e => { if (!showAddLink) (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                {showAddLink ? 'Fechar' : 'Adicionar Link'}
               </button>
             </div>
 
-            {/* Add link form */}
+            {/* ── Add link form ── */}
             {showAddLink && (
-              <div className="section" style={{ marginBottom: 24, padding: 20 }}>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{
+                background: 'var(--surface)', borderRadius: 16,
+                border: '1px solid var(--surface-border)', padding: 24, marginBottom: 32,
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, color: 'var(--text)' }}>
+                  Novo Link
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   <input
                     value={newLinkName}
                     onChange={e => setNewLinkName(e.target.value)}
                     placeholder="Nome (ex: Canva)"
                     style={{
-                      flex: '1 1 200px', padding: '10px 14px',
-                      border: '1px solid var(--surface-border)', borderRadius: 8,
+                      flex: '1 1 200px', padding: '12px 16px',
+                      border: '1px solid var(--surface-border)', borderRadius: 10,
                       background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
                       fontFamily: 'inherit', outline: 'none',
                     }}
@@ -2467,14 +2813,24 @@ function Dashboard() {
                     onChange={e => setNewLinkUrl(e.target.value)}
                     placeholder="URL (ex: https://canva.com)"
                     style={{
-                      flex: '2 1 300px', padding: '10px 14px',
-                      border: '1px solid var(--surface-border)', borderRadius: 8,
+                      flex: '2 1 300px', padding: '12px 16px',
+                      border: '1px solid var(--surface-border)', borderRadius: 10,
                       background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
                       fontFamily: 'inherit', outline: 'none',
                     }}
                   />
-                  <button className="onboarding-btn" style={{ padding: '8px 20px', fontSize: 13 }}
-                    onClick={addLink} disabled={!newLinkName.trim() || !newLinkUrl.trim()}>
+                  <button
+                    onClick={addLink}
+                    disabled={!newLinkName.trim() || !newLinkUrl.trim()}
+                    style={{
+                      padding: '12px 24px', borderRadius: 10, border: 'none',
+                      background: !newLinkName.trim() || !newLinkUrl.trim() ? 'var(--surface-border)' : 'var(--accent)',
+                      color: !newLinkName.trim() || !newLinkUrl.trim() ? 'var(--text-muted)' : '#fff',
+                      fontSize: 14, fontWeight: 600, cursor: !newLinkName.trim() || !newLinkUrl.trim() ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit', whiteSpace: 'nowrap',
+                      transition: 'all 0.2s',
+                    }}
+                  >
                     Guardar
                   </button>
                 </div>
@@ -2533,10 +2889,14 @@ function Dashboard() {
                       width: 44, height: 44, borderRadius: 12,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 16, fontWeight: 700,
-                      background: link.url ? 'rgba(255,255,255,0.2)' : 'var(--surface)',
-                      color: link.url ? '#fff' : 'var(--text-muted)',
+                      background: link.url ? getIconColor(link.id) : 'var(--surface)',
+                      color: '#fff',
                     }}>
-                      {LINK_ICONS[link.id] || link.name.slice(0, 2).toUpperCase()}
+                      {link.url ? (
+                        <img src={getFaviconUrl(link.url)} alt="" style={{ width: 22, height: 22, borderRadius: 4 }} onError={e => { (e.target as HTMLElement).style.display = 'none'; (e.target as HTMLElement).parentElement!.textContent = LINK_ICONS[link.id] || link.name.slice(0, 2).toUpperCase() }} />
+                      ) : (
+                        LINK_ICONS[link.id] || link.name.slice(0, 2).toUpperCase()
+                      )}
                     </div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: link.url ? '#fff' : 'var(--text-muted)', lineHeight: 1.3 }}>
                       {link.name}
@@ -2574,26 +2934,70 @@ function Dashboard() {
                 </a>
               ))}
 
-              {/* Add card */}
-              {!showAddLink && (
-                <div
-                  onClick={() => setShowAddLink(true)}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    minHeight: 180, borderRadius: 16, padding: 24,
-                    border: '2px dashed var(--surface-border)',
-                    cursor: 'pointer', color: 'var(--text-muted)',
-                    transition: 'border-color 0.2s, color 0.2s',
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--surface-border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)' }}
-                >
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent-bg)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10, fontSize: 20 }}>
-                    +
-                  </div>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>Adicionar Link</span>
-                </div>
-              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div style={{ padding: '32px 40px', maxWidth: 700 }}>
+            <div className="topbar" style={{ marginBottom: 28 }}>
+              <div>
+                <h1 className="page-title">Settings</h1>
+                <p className="greeting">Configuracoes da aplicacao</p>
+              </div>
+            </div>
+
+            {/* Theme */}
+            <div className="section" style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Theme</h2>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {[
+                  { key: 'dark', label: 'Dark', icon: '🌙', preview: '#0f1117' },
+                  { key: 'light', label: 'Light', icon: '☀️', preview: '#f4f5f7' },
+                  { key: 'mono', label: 'Mono', icon: '🪨', preview: '#121212' },
+                  { key: 'espresso', label: 'Espresso', icon: '☕', preview: '#1a1512' },
+                  { key: 'midnight', label: 'Midnight', icon: '🌊', preview: '#0f1419' },
+                  { key: 'vermilion', label: 'Vermilion', icon: '🏮', preview: '#1a1214' },
+                  { key: 'sage', label: 'Sage', icon: '🌿', preview: '#131a15' },
+                  { key: 'noir', label: 'Noir', icon: '🖤', preview: '#0d0d0d' },
+                ].map(t => (
+                  <button
+                    key={t.key}
+                    className="quick-btn"
+                    onClick={() => setTheme(t.key)}
+                    style={{
+                      flex: '1 1 100px',
+                      minWidth: 100,
+                      padding: '14px 12px',
+                      borderRadius: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: theme === t.key ? 'var(--accent)' : 'var(--surface)',
+                      color: theme === t.key ? '#fff' : 'var(--text)',
+                      border: theme === t.key ? '2px solid var(--accent)' : '1px solid var(--surface-border)',
+                      fontWeight: theme === t.key ? 600 : 400,
+                    }}
+                  >
+                    <span style={{ fontSize: 22 }}>{t.icon}</span>
+                    <span style={{ fontSize: 12 }}>{t.label}</span>
+                    <span style={{
+                      width: 16, height: 16, borderRadius: '50%',
+                      background: t.preview,
+                      border: '1px solid var(--surface-border)'
+                    }} />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* API */}
+            <div className="section" style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>API</h2>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                Backend API: <code style={{ background: 'var(--surface)', padding: '2px 6px', borderRadius: 4 }}>{API}</code>
+              </p>
             </div>
           </div>
         )}
