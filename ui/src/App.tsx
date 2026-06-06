@@ -738,6 +738,7 @@ function Dashboard() {
   const [studioUploads, setStudioUploads] = useState<{name: string, filename: string, url: string, size: number}[]>([])
   const [uploadsLoading, setUploadsLoading] = useState(false)
   const [duplicateAlert, setDuplicateAlert] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{x: number, y: number, filename: string} | null>(null)
   const [_studioModel, _setStudioModel] = useState('higgsfield-v2-beta')
   const studioMessagesEndRef = useRef<HTMLDivElement>(null)
   const studioFileInputRef = useRef<HTMLInputElement>(null)
@@ -989,37 +990,151 @@ function Dashboard() {
       if (res.ok) {
         setNewMemory('')
         const r = await fetch(`${API}/memory/files`)
-        if (r.ok) { const d = await r.json(); setMemoryEntries(d.entries || d.memories || []) }
+        if (r.ok) { const d = await r.json(); setMemoryEntries(d.files || d.entries || d.memories || []) }
       }
     } catch (err) { console.error('Memory add error', err) }
   }
 
+  // ── Memory File View/Edit ────────────────
+  const [selectedMemoryFile, setSelectedMemoryFile] = useState<any | null>(null)
+  const [memoryFileContent, setMemoryFileContent] = useState('')
+  const [memoryFileLoading, setMemoryFileLoading] = useState(false)
+  const [memoryEditMode, setMemoryEditMode] = useState(false)
+  const [memoryEditContent, setMemoryEditContent] = useState('')
+  const [memorySaving, setMemorySaving] = useState(false)
+
+  const homeDir = '/Users/' + (typeof window !== 'undefined' ? window.location.hostname === 'localhost' ? 'santiagoveloso' : '' : '')
+
+  const loadMemoryFile = useCallback(async (file: any) => {
+    setSelectedMemoryFile(file)
+    setMemoryFileLoading(true)
+    setMemoryEditMode(false)
+    try {
+      // The file.path is absolute (e.g. /Users/santiagoveloso/ghost/MEMORY.md)
+      // The /memory/read endpoint expects a path relative to ~/ghost/
+      const ghostPrefix = '/Users/santiagoveloso/ghost/'
+      const relativePath = file.path.startsWith(ghostPrefix)
+        ? file.path.slice(ghostPrefix.length)
+        : file.path
+      const res = await fetch(`${API}/memory/read?path=${encodeURIComponent(relativePath)}`)
+      if (res.ok) {
+        const data = await res.json()
+        setMemoryFileContent(data.content || '')
+        setMemoryEditContent(data.content || '')
+      } else {
+        setMemoryFileContent('*Erro ao carregar o ficheiro.*')
+        setMemoryEditContent('')
+      }
+    } catch (err) {
+      console.error('Memory read error', err)
+      setMemoryFileContent('*Erro ao carregar o ficheiro.*')
+    } finally {
+      setMemoryFileLoading(false)
+    }
+  }, [])
+
+  const saveMemoryFile = useCallback(async () => {
+    if (!selectedMemoryFile) return
+    setMemorySaving(true)
+    try {
+      const res = await fetch(`${API}/memory/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: selectedMemoryFile.path, content: memoryEditContent }),
+      })
+      if (res.ok) {
+        setMemoryFileContent(memoryEditContent)
+        setMemoryEditMode(false)
+      }
+    } catch (err) {
+      console.error('Memory save error', err)
+    } finally {
+      setMemorySaving(false)
+    }
+  }, [selectedMemoryFile, memoryEditContent])
+
   // ── Links Tab ───────────────────────────
+  const DEFAULT_LINKS = [
+    { id: 'bp-academy', name: 'Blueprint Academy', url: 'https://www.blueprint-academy.com/dashboard' },
+    { id: 'sp-lite', name: 'SP Lite', url: 'https://app.sp-lite.com/' },
+    { id: 'ads-manager', name: 'Ads Manager', url: 'https://adsmanager.facebook.com/' },
+    { id: 'ads-library', name: 'Ads Library', url: 'https://www.facebook.com/ads/library/' },
+    { id: 'google-analytics', name: 'Google Analytics', url: 'https://analytics.google.com/' },
+    { id: 'shopify', name: 'Shopify Loja', url: '' },
+  ]
   const [links, setLinks] = useState<{id: string; name: string; url: string}[]>(() => {
     try {
       const saved = localStorage.getItem('ec_links')
       if (saved) return JSON.parse(saved)
     } catch {}
-    return []
+    return DEFAULT_LINKS
   })
+  const [showAddLink, setShowAddLink] = useState(false)
   const [newLinkName, setNewLinkName] = useState('')
   const [newLinkUrl, setNewLinkUrl] = useState('')
+  const [shopifyUrl, setShopifyUrl] = useState(() => localStorage.getItem('ec_shopify_url') || '')
   useEffect(() => { localStorage.setItem('ec_links', JSON.stringify(links)) }, [links])
+  useEffect(() => { localStorage.setItem('ec_shopify_url', shopifyUrl) }, [shopifyUrl])
+
+  // Keep Shopify link in sync with configurable URL
+  const displayLinks = links.map(l =>
+    l.id === 'shopify' ? { ...l, url: shopifyUrl } : l
+  )
 
   const addLink = () => {
     if (!newLinkName.trim() || !newLinkUrl.trim()) return
     setLinks(prev => [...prev, { id: uid(), name: newLinkName.trim(), url: newLinkUrl.trim() }])
     setNewLinkName('')
     setNewLinkUrl('')
+    setShowAddLink(false)
   }
 
   const deleteLink = (id: string) => {
+    if (id === 'shopify') { setShopifyUrl(''); return }
     setLinks(prev => prev.filter(l => l.id !== id))
+  }
+
+  const LINK_GRADIENTS: Record<string, string> = {
+    'bp-academy': 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    'sp-lite': 'linear-gradient(135deg, #14b8a6, #10b981)',
+    'ads-manager': 'linear-gradient(135deg, #f97316, #ef4444)',
+    'ads-library': 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+    'google-analytics': 'linear-gradient(135deg, #f59e0b, #eab308)',
+    'shopify': 'linear-gradient(135deg, #059669, #10b981)',
+  }
+
+  const LINK_ICONS: Record<string, string> = {
+    'bp-academy': 'BP',
+    'sp-lite': 'SP',
+    'ads-manager': 'AM',
+    'ads-library': 'AL',
+    'google-analytics': 'GA',
+    'shopify': 'SH',
+  }
+
+  const getGradient = (id: string, idx: number) => {
+    if (LINK_GRADIENTS[id]) return LINK_GRADIENTS[id]
+    const palettes = [
+      'linear-gradient(135deg, #ec4899, #8b5cf6)',
+      'linear-gradient(135deg, #3b82f6, #6366f1)',
+      'linear-gradient(135deg, #f43f5e, #e11d48)',
+      'linear-gradient(135deg, #0ea5e9, #06b6d4)',
+    ]
+    return palettes[idx % palettes.length]
   }
 
   // ── Automations Tab ─────────────────────
   const [automations, setAutomations] = useState<any[]>([])
   const [automationsLoading, setAutomationsLoading] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newAutoName, setNewAutoName] = useState('')
+  const [newAutoSchedule, setNewAutoSchedule] = useState('')
+  const [newAutoPrompt, setNewAutoPrompt] = useState('')
+  const [newAutoSkills, setNewAutoSkills] = useState('')
+  const [newAutoDeliver, setNewAutoDeliver] = useState('local')
+  const [creating, setCreating] = useState(false)
+  const [autoActionLoading, setAutoActionLoading] = useState<string | null>(null)
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchAutomations() {
@@ -1052,6 +1167,55 @@ function Dashboard() {
         setAutomations(prev => prev.map(a => a.id === id ? { ...a, status: 'active' } : a))
       }
     } catch (err) { console.error('Resume error', err) }
+  }
+
+  const deleteAutomation = async (id: string) => {
+    setAutoActionLoading(id)
+    try {
+      const res = await fetch(`${API}/automations/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setAutomations(prev => prev.filter(a => a.id !== id))
+      }
+    } catch (err) { console.error('Delete error', err) }
+    finally { setAutoActionLoading(null) }
+  }
+
+  const runAutomationNow = async (id: string) => {
+    setAutoActionLoading(id)
+    try {
+      await fetch(`${API}/automations/${id}/run`, { method: 'POST' })
+      setAutoActionLoading(null)
+    } catch (err) { console.error('Run error', err) }
+    finally { setAutoActionLoading(null) }
+  }
+
+  const createAutomation = async () => {
+    if (!newAutoName.trim() || !newAutoSchedule.trim() || !newAutoPrompt.trim()) return
+    setCreating(true)
+    try {
+      const res = await fetch(`${API}/automations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newAutoName.trim(),
+          schedule: newAutoSchedule.trim(),
+          prompt: newAutoPrompt.trim(),
+          skills: newAutoSkills.trim(),
+          deliver: newAutoDeliver,
+        }),
+      })
+      if (res.ok) {
+        setShowCreateModal(false)
+        setNewAutoName('')
+        setNewAutoSchedule('')
+        setNewAutoPrompt('')
+        setNewAutoSkills('')
+        // Refresh list
+        const r = await fetch(`${API}/automations`)
+        if (r.ok) setAutomations((await r.json()).automations || [])
+      }
+    } catch (err) { console.error('Create error', err) }
+    finally { setCreating(false) }
   }
 
   // ── Sidebar resize ──────────────────────
@@ -2103,33 +2267,128 @@ function Dashboard() {
                 <h1 className="page-title">Automacoes</h1>
                 <p className="greeting">Cron jobs e tarefas agendadas do Hermes</p>
               </div>
+              <div className="topbar-actions">
+                <button className="refresh-btn" onClick={() => {
+                  setShowCreateModal(true)
+                }}>{Icons.plus} Nova Automacao</button>
+              </div>
             </div>
+
             {automationsLoading ? (
               <div className="loading-screen"><div className="loader" /></div>
             ) : automations.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma automacao configurada.</p>
+              <div className="section" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Nenhuma automacao configurada.</p>
+                <button className="refresh-btn" onClick={() => setShowCreateModal(true)}>
+                  {Icons.plus} Criar primeira automacao
+                </button>
+              </div>
             ) : (
               <div className="section">
                 <table className="table">
-                  <thead><tr><th>Nome</th><th>Agenda</th><th>Status</th><th>Proxima Execucao</th><th>Acoes</th></tr></thead>
+                  <thead><tr><th>Nome</th><th>Agenda</th><th>Status</th><th>Ultima Execucao</th><th>Proxima Execucao</th><th>Acoes</th></tr></thead>
                   <tbody>
                     {automations.map((a, i) => (
-                      <tr key={a.id || i}>
-                        <td><span className="order-name">{a.name || a.job_id || a.id || '-'}</span></td>
-                        <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{a.schedule || '-'}</td>
-                        <td><span className={`status-tag ${a.status === 'active' || a.status === 'running' ? 'active' : 'paused'}`}>{a.status || '-'}</span></td>
-                        <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{a.next_run || '-'}</td>
-                        <td>
-                          {a.status === 'active' || a.status === 'running' ? (
-                            <button className="quick-btn" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => pauseAutomation(a.id || a.job_id)}>Pausar</button>
-                          ) : (
-                            <button className="quick-btn" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => resumeAutomation(a.id || a.job_id)}>Ativar</button>
-                          )}
-                        </td>
-                      </tr>
+                      <>
+                        <tr key={a.id || i}>
+                          <td>
+                            <span className="order-name" style={{ cursor: 'pointer' }}
+                              onClick={() => setExpandedJobId(expandedJobId === a.id ? null : a.id)}>
+                              {a.name || a.id || '-'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{a.schedule || '-'}</td>
+                          <td><span className={`status-tag ${a.status === 'active' || a.status === 'running' ? 'active' : 'paused'}`}>{a.status || '-'}</span></td>
+                          <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                            {a.last_run || '-'}
+                            {a.last_status && (
+                              <span style={{ color: a.last_status === 'ok' ? 'var(--success)' : 'var(--danger)', marginLeft: 4 }}>
+                                ({a.last_status})
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{a.next_run || '-'}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              {a.status === 'active' || a.status === 'running' ? (
+                                <button className="quick-btn" style={{ fontSize: 11, padding: '4px 8px' }}
+                                  onClick={() => pauseAutomation(a.id || a.job_id)}>Pausar</button>
+                              ) : (
+                                <button className="quick-btn" style={{ fontSize: 11, padding: '4px 8px' }}
+                                  onClick={() => resumeAutomation(a.id || a.job_id)}>Ativar</button>
+                              )}
+                              <button className="quick-btn" style={{ fontSize: 11, padding: '4px 8px' }}
+                                onClick={() => runAutomationNow(a.id || a.job_id)}
+                                disabled={actionLoading === (a.id || a.job_id)}>
+                                {actionLoading === (a.id || a.job_id) ? '...' : 'Executar'}
+                              </button>
+                              <button className="quick-btn" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--danger)' }}
+                                onClick={() => deleteAutomation(a.id || a.job_id)}
+                                disabled={actionLoading === (a.id || a.job_id)}>
+                                {actionLoading === (a.id || a.job_id) ? '...' : 'Apagar'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {expandedJobId === a.id && (
+                          <tr key={`${a.id}-detail`}>
+                            <td colSpan={6} style={{ padding: '12px 16px', background: 'var(--surface)' }}>
+                              <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                                {a.prompt && <div><strong>Prompt:</strong> {a.prompt}</div>}
+                                {a.skills && <div><strong>Skills:</strong> {a.skills}</div>}
+                                {a.deliver && <div><strong>Deliver:</strong> {a.deliver}</div>}
+                                {a.last_run && <div><strong>Ultima execucao:</strong> {a.last_run} {a.last_status ? `(${a.last_status})` : ''}</div>}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* ── Create Modal ── */}
+            {showCreateModal && (
+              <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+                <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+                  <h3 style={{ marginBottom: 20 }}>Nova Automacao</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <label className="field"><span>Nome</span>
+                      <input value={newAutoName} onChange={e => setNewAutoName(e.target.value)} placeholder="Ex: Relatorio diario" />
+                    </label>
+                    <label className="field"><span>Agenda (cron)</span>
+                      <input value={newAutoSchedule} onChange={e => setNewAutoSchedule(e.target.value)} placeholder="Ex: 0 9 * * 1-5" />
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>formato cron: minuto hora dia mes dia-semana</span>
+                    </label>
+                    <label className="field"><span>Prompt</span>
+                      <textarea value={newAutoPrompt} onChange={e => setNewAutoPrompt(e.target.value)}
+                        placeholder="O que o agente deve fazer..."
+                        rows={3}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--surface-border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
+                      />
+                    </label>
+                    <label className="field"><span>Skills (opcional)</span>
+                      <input value={newAutoSkills} onChange={e => setNewAutoSkills(e.target.value)} placeholder="Ex: shopify, email" />
+                    </label>
+                    <label className="field"><span>Entrega</span>
+                      <select value={newAutoDeliver} onChange={e => setNewAutoDeliver(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--surface-border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13, outline: 'none' }}>
+                        <option value="local">Local (apenas log)</option>
+                        <option value="origin">Origin (chat atual)</option>
+                        <option value="telegram">Telegram</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="modal-actions" style={{ marginTop: 20 }}>
+                    <button className="modal-btn cancel" onClick={() => setShowCreateModal(false)}>Cancelar</button>
+                    <button className="modal-btn primary" onClick={createAutomation}
+                      disabled={creating || !newAutoName.trim() || !newAutoSchedule.trim() || !newAutoPrompt.trim()}>
+                      {creating ? 'A criar...' : 'Criar Automacao'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -2177,94 +2436,162 @@ function Dashboard() {
         )}
 
         {activeTab === 'links' && (
-          <div style={{ padding: '32px 40px', maxWidth: 800 }}>
-            <div className="topbar">
+          <div style={{ padding: '32px 40px' }}>
+            <div className="topbar" style={{ marginBottom: 24 }}>
               <div>
                 <h1 className="page-title">Links</h1>
-                <p className="greeting">Atalhos e links que usas frequentemente</p>
+                <p className="greeting">Atalhos rápidos para as tuas ferramentas</p>
               </div>
+              <button className="quick-btn" onClick={() => setShowAddLink(!showAddLink)} style={{ fontSize: 13, padding: '8px 16px' }}>
+                {Icons.plus} {showAddLink ? 'Fechar' : 'Adicionar Link'}
+              </button>
             </div>
 
-            <div className="section" style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Adicionar Link</h2>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <input
-                  value={newLinkName}
-                  onChange={e => setNewLinkName(e.target.value)}
-                  placeholder="Nome (ex: Lana Dashboard)"
-                  style={{
-                    flex: '1 1 200px', padding: '10px 14px',
-                    border: '1px solid var(--surface-border)', borderRadius: 8,
-                    background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
-                    fontFamily: 'inherit', outline: 'none',
-                  }}
-                />
-                <input
-                  value={newLinkUrl}
-                  onChange={e => setNewLinkUrl(e.target.value)}
-                  placeholder="URL (ex: https://lanazagreb.com/admin)"
-                  style={{
-                    flex: '2 1 300px', padding: '10px 14px',
-                    border: '1px solid var(--surface-border)', borderRadius: 8,
-                    background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
-                    fontFamily: 'inherit', outline: 'none',
-                  }}
-                />
-                <button className="onboarding-btn" style={{ padding: '8px 20px', fontSize: 13 }}
-                  onClick={addLink} disabled={!newLinkName.trim() || !newLinkUrl.trim()}>
-                  Adicionar
-                </button>
-              </div>
-            </div>
-
-            <div className="section">
-              {links.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                  <div style={{
-                    width: 48, height: 48, borderRadius: 12,
-                    background: 'var(--accent-bg)', color: 'var(--accent)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    margin: '0 auto 12px',
-                  }}>{Icons.link}</div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhum link guardado.</p>
+            {/* Add link form */}
+            {showAddLink && (
+              <div className="section" style={{ marginBottom: 24, padding: 20 }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <input
+                    value={newLinkName}
+                    onChange={e => setNewLinkName(e.target.value)}
+                    placeholder="Nome (ex: Canva)"
+                    style={{
+                      flex: '1 1 200px', padding: '10px 14px',
+                      border: '1px solid var(--surface-border)', borderRadius: 8,
+                      background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
+                      fontFamily: 'inherit', outline: 'none',
+                    }}
+                  />
+                  <input
+                    value={newLinkUrl}
+                    onChange={e => setNewLinkUrl(e.target.value)}
+                    placeholder="URL (ex: https://canva.com)"
+                    style={{
+                      flex: '2 1 300px', padding: '10px 14px',
+                      border: '1px solid var(--surface-border)', borderRadius: 8,
+                      background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
+                      fontFamily: 'inherit', outline: 'none',
+                    }}
+                  />
+                  <button className="onboarding-btn" style={{ padding: '8px 20px', fontSize: 13 }}
+                    onClick={addLink} disabled={!newLinkName.trim() || !newLinkUrl.trim()}>
+                    Guardar
+                  </button>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {links.map(link => (
-                    <div key={link.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '12px 16px',
-                      background: 'var(--surface)',
-                      border: '1px solid var(--surface-border)',
-                      borderRadius: 10,
-                      transition: 'border-color 0.15s',
+              </div>
+            )}
+
+            {/* Shopify URL config */}
+            {links.some(l => l.id === 'shopify') && (
+              <div className="section" style={{ marginBottom: 24, padding: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Shopify Store URL</div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <input
+                    value={shopifyUrl}
+                    onChange={e => setShopifyUrl(e.target.value)}
+                    placeholder="https://tualoja.myshopify.com/admin"
+                    style={{
+                      flex: 1, padding: '10px 14px',
+                      border: '1px solid var(--surface-border)', borderRadius: 8,
+                      background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
+                      fontFamily: 'inherit', outline: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Link cards grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: 16,
+            }}>
+              {displayLinks.map((link, idx) => (
+                <a
+                  key={link.id}
+                  href={link.url || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => { if (!link.url) e.preventDefault() }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                    padding: 0, borderRadius: 16, overflow: 'hidden',
+                    textDecoration: 'none', cursor: link.url ? 'pointer' : 'default',
+                    minHeight: 180, position: 'relative',
+                    border: link.url ? 'none' : '2px dashed var(--surface-border)',
+                    background: link.url ? getGradient(link.id, idx) : 'transparent',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    transform: 'scale(1)',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 30px rgba(0,0,0,0.15)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
+                >
+                  {/* Card content */}
+                  <div style={{ padding: '24px 24px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16, fontWeight: 700,
+                      background: link.url ? 'rgba(255,255,255,0.2)' : 'var(--surface)',
+                      color: link.url ? '#fff' : 'var(--text-muted)',
                     }}>
-                      <div style={{
-                        width: 36, height: 36, borderRadius: 8,
-                        background: 'var(--accent-bg)', color: 'var(--accent)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        flexShrink: 0,
-                      }}>{Icons.link}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{link.name}</div>
-                        <div style={{
-                          fontSize: 12, color: 'var(--text-secondary)',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>{link.url}</div>
-                      </div>
-                      <a href={link.url} target="_blank" rel="noopener noreferrer"
-                        className="quick-btn" style={{ fontSize: 12, padding: '6px 12px', textDecoration: 'none' }}>
-                        Abrir
-                      </a>
-                      <button className="quick-btn" style={{
-                        fontSize: 12, padding: '6px 10px',
-                        color: 'var(--danger)', background: 'var(--danger-bg)',
-                        borderColor: 'transparent',
-                      }} onClick={() => deleteLink(link.id)}>
-                        Eliminar
-                      </button>
+                      {LINK_ICONS[link.id] || link.name.slice(0, 2).toUpperCase()}
                     </div>
-                  ))}
+                    <div style={{ fontSize: 18, fontWeight: 700, color: link.url ? '#fff' : 'var(--text-muted)', lineHeight: 1.3 }}>
+                      {link.name}
+                    </div>
+                    <div style={{
+                      fontSize: 12, color: link.url ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {link.url || 'Sem URL configurado'}
+                    </div>
+                  </div>
+
+                  {/* Bottom bar */}
+                  <div style={{
+                    padding: '12px 24px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    borderTop: link.url ? '1px solid rgba(255,255,255,0.15)' : '1px solid var(--surface-border)',
+                    marginTop: 12,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: link.url ? 'rgba(255,255,255,0.9)' : 'var(--text-muted)' }}>
+                      {link.url ? 'Abrir →' : 'Configurar'}
+                    </span>
+                    <button
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); deleteLink(link.id) }}
+                      style={{
+                        background: link.url ? 'rgba(255,255,255,0.15)' : 'var(--danger-bg)',
+                        border: 'none', borderRadius: 8, padding: '4px 10px',
+                        color: link.url ? 'rgba(255,255,255,0.8)' : 'var(--danger)',
+                        fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      {link.id === 'shopify' && !shopifyUrl ? 'Limpar' : 'Remover'}
+                    </button>
+                  </div>
+                </a>
+              ))}
+
+              {/* Add card */}
+              {!showAddLink && (
+                <div
+                  onClick={() => setShowAddLink(true)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    minHeight: 180, borderRadius: 16, padding: 24,
+                    border: '2px dashed var(--surface-border)',
+                    cursor: 'pointer', color: 'var(--text-muted)',
+                    transition: 'border-color 0.2s, color 0.2s',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--surface-border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)' }}
+                >
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent-bg)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10, fontSize: 20 }}>
+                    +
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>Adicionar Link</span>
                 </div>
               )}
             </div>
