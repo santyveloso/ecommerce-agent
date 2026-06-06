@@ -181,7 +181,7 @@ function Dashboard() {
   })
   const [activeTab, setActiveTab] = useState('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(200)
+  const [sidebarWidth, setSidebarWidth] = useState(250)
   const [availableModels, setAvailableModels] = useState<string[]>(FALLBACK_MODELS)
   const [gatewayActiveModel, setGatewayActiveModel] = useState<string>('deepseek-v4-flash')
 
@@ -740,6 +740,8 @@ function Dashboard() {
   const [duplicateAlert, setDuplicateAlert] = useState<string | null>(null)
   const [_studioModel, _setStudioModel] = useState('higgsfield-v2-beta')
   const studioMessagesEndRef = useRef<HTMLDivElement>(null)
+  const studioFileInputRef = useRef<HTMLInputElement>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
 
   useEffect(() => { localStorage.setItem('ec_studio_messages', JSON.stringify(studioMessages)) }, [studioMessages])
 
@@ -1073,7 +1075,7 @@ function Dashboard() {
     if (sidebarCollapsed) {
       // Expand to last known width (or default 200)
       setSidebarCollapsed(false)
-      setSidebarWidth(prev => Math.max(prev, 140))
+      setSidebarWidth(prev => Math.max(prev, 190))
     } else {
       setSidebarCollapsed(true)
     }
@@ -1083,7 +1085,7 @@ function Dashboard() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return
-      const w = Math.max(56, Math.min(200, e.clientX))
+      const w = Math.max(56, Math.min(400, e.clientX))
       setSidebarWidth(w)
       if (w < COLLAPSE_THRESHOLD && !collapsedRef.current) setSidebarCollapsed(true)
       if (w > COLLAPSE_THRESHOLD + 20 && collapsedRef.current) setSidebarCollapsed(false)
@@ -1107,6 +1109,7 @@ function Dashboard() {
 
   // ── Studio @mention autocomplete ──────────
   const [studioSuggestions, setStudioSuggestions] = useState<string[]>([])
+  const [studioShowSuggestions, setStudioShowSuggestions] = useState(false)
   const [studioSuggestionTriggerIdx, setStudioSuggestionTriggerIdx] = useState(-1)
   const [studioActiveSuggestionIdx, setStudioActiveSuggestionIdx] = useState(0)
 
