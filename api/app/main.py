@@ -113,6 +113,22 @@ async def setup_save(req: setup_mod.SetupSave):
     return result
 
 
+@app.get("/setup/gateway")
+async def setup_gateway_status():
+    """Check if remote agent/gateway is configured and reachable."""
+    return setup_mod.get_gateway_status().dict()
+
+
+@app.post("/setup/gateway")
+async def setup_gateway_save(req: setup_mod.GatewaySetupSave):
+    """Save remote agent/gateway URL and test connection."""
+    result = setup_mod.save_gateway_credentials(req)
+    if not result.connected:
+        # Still return successfully saved — the connection test is informational
+        pass
+    return result.dict()
+
+
 # ── Endpoints ────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -473,7 +489,17 @@ async def chat_stream(req: ChatRequest):
         # Gateway streaming
         model = req.model or gateway.selected_model
         async for token in gateway.chat_stream(user_msg, req.context, history_dicts, model=model):
-            yield f"data: {json.dumps({'token': token})}\n\n"
+            # Tool progress events
+            if token.startswith("__TOOL__:"):
+                yield f"data: {token[9:]}\n\n"
+            # Raw text that couldn't be parsed — render as text anyway
+            elif token.startswith("__RAW__:"):
+                yield f"data: {json.dumps({'token': token[7:]})}\n\n"
+            elif token.startswith("__EVENT__:"):
+                # Unknown structured event — skip, don't render raw
+                continue
+            else:
+                yield f"data: {json.dumps({'token': token})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(

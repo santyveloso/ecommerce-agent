@@ -105,6 +105,71 @@ def save_credentials(data: SetupSave) -> SetupStatus:
     return get_status()
 
 
+class GatewaySetupSave(BaseModel):
+    gateway_url: str
+    gateway_token: str = ""
+
+
+class GatewaySetupStatus(BaseModel):
+    configured: bool
+    gateway_url: Optional[str] = None
+    connected: bool = False
+    error: Optional[str] = None
+
+
+def get_gateway_status() -> GatewaySetupStatus:
+    """Check if gateway is configured and reachable."""
+    if ENV_PATH.exists():
+        load_env(ENV_PATH)
+
+    config = Config.from_env()
+    gateway_url = config.gateway_url
+
+    if not gateway_url:
+        return GatewaySetupStatus(configured=False, error="Nenhum URL configurado")
+
+    try:
+        import httpx
+        # Try to reach the gateway
+        base = gateway_url.replace("/v1/chat/completions", "").replace("/chat/completions", "")
+        resp = httpx.get(f"{base}/health", timeout=5)
+        if resp.status_code < 500:
+            return GatewaySetupStatus(
+                configured=True,
+                gateway_url=gateway_url,
+                connected=True,
+            )
+        return GatewaySetupStatus(
+            configured=True,
+            gateway_url=gateway_url,
+            connected=False,
+            error=f"Gateway respondeu com HTTP {resp.status_code}",
+        )
+    except Exception as e:
+        return GatewaySetupStatus(
+            configured=True,
+            gateway_url=gateway_url,
+            connected=False,
+            error=str(e),
+        )
+
+
+def save_gateway_credentials(data: GatewaySetupSave) -> GatewaySetupStatus:
+    """Save gateway/agent URL to .env and test connection."""
+    url = data.gateway_url.strip().rstrip("/")
+    if not url.startswith("http"):
+        url = f"http://{url}"
+
+    update_env_file({
+        "GATEWAY_URL": url,
+        "HERMES_GATEWAY_TOKEN": data.gateway_token.strip(),
+    })
+
+    load_env(ENV_PATH)
+
+    return get_gateway_status()
+
+
 def save_zoho_credentials(data: ZohoSetupSave):
     """Save Zoho credentials to .env and reload env."""
     update_env_file({

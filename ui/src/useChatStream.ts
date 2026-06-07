@@ -1,9 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
+export interface ToolProgress {
+  tool: string
+  status: string
+  emoji: string
+  label: string
+}
+
 interface UseChatStreamOptions {
   onToken?: (token: string) => void
   onDone?: (fullContent: string) => void
   onError?: (error: string) => void
+  onToolProgress?: (progress: ToolProgress) => void
 }
 
 export interface UseChatStreamReturn {
@@ -85,6 +93,11 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               }
               try {
                 const parsed = JSON.parse(data)
+                // Tool progress events
+                if (parsed.type === 'tool_progress') {
+                  options.onToolProgress?.(parsed as ToolProgress)
+                  continue
+                }
                 const token = parsed.token || parsed.content || parsed.delta || ''
                 if (token) {
                   accumulatorRef.current += token

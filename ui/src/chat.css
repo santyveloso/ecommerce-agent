@@ -64,26 +64,6 @@
   color: var(--danger);
 }
 
-.chat-header-new {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--surface-border);
-  background: var(--surface);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.chat-header-new:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-  border-color: var(--accent);
-}
-
 .streaming-dot {
   width: 6px;
   height: 6px;
@@ -159,11 +139,14 @@
 }
 
 .message-bubble.user {
+  flex-direction: row-reverse;
   justify-content: flex-start;
+  align-items: flex-end;
 }
 
 .message-bubble.assistant {
   justify-content: flex-start;
+  align-items: flex-start;
 }
 
 .message-bubble.deleting {
@@ -195,9 +178,55 @@
 }
 
 .message-content {
-  flex: 1;
-  min-width: 0;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* ── Bubble ────────────────────────────────── */
+.bubble {
+  padding: 6px 14px;
+  border-radius: 16px;
+  max-width: 680px;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.bubble-user {
+  background: var(--accent);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble-assistant {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-bottom-left-radius: 4px;
+}
+
+/* Markdown inside bubbles */
+.bubble-user .markdown-body {
+  color: white;
+}
+.bubble-user .markdown-body a {
+  color: rgba(255,255,255,0.85);
+  text-decoration: underline;
+}
+.bubble-user .markdown-body code,
+.bubble-user .markdown-body pre {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border-color: rgba(255,255,255,0.2);
+}
+.bubble-user .markdown-body strong {
+  color: white;
+}
+.bubble-user .markdown-body h1,
+.bubble-user .markdown-body h2,
+.bubble-user .markdown-body h3,
+.bubble-user .markdown-body h4 {
+  color: white;
 }
 
 .message-content .markdown-body {
@@ -209,6 +238,11 @@
   color: var(--text-muted);
   margin-top: 8px;
   display: block;
+}
+
+.message-bubble.user .message-timestamp {
+  text-align: right;
+  width: 100%;
 }
 
 /* ── Message Actions (hover overlay) ────────── */
@@ -1172,4 +1206,41 @@
 .folder-color-swatch.active {
   border-color: var(--text);
   box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* ── Tool Progress Indicator ── */
+.tool-progress-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  animation: tool-fade-in 0.2s ease-out;
+}
+
+.tool-progress-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: tool-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.tool-progress-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes tool-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes tool-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }

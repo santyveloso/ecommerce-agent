@@ -3,7 +3,7 @@ import MarkdownRenderer from './MarkdownRenderer'
 import ChatInput from './ChatInput'
 import ChatMessages from './ChatMessages'
 import SessionSidebar from './SessionSidebar'
-import { useChatStream } from './useChatStream'
+import { useChatStream, type ToolProgress } from './useChatStream'
 import './revenue-chart.css'
 import './dashboard.css'
 import './chat.css'
@@ -91,15 +91,24 @@ function uid() {
 
 /* ── Onboarding ─────────────────────────────── */
 function Onboarding({ onDone }: { onDone: () => void }) {
-  const [domain, setDomain] = useState('')
-  const [token, setToken] = useState('')
-  const [apiVer, setApiVer] = useState('2026-01')
-  const [saving, setSaving] = useState(false)
+  const [step, setStep] = useState(1)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Step 1: Shopify
+  const [domain, setDomain] = useState('')
+  const [token, setToken] = useState('')
+
+  // Step 2: Choose default view
+  const [defaultView, setDefaultView] = useState('dashboard')
+
+  // Step 3: Germes / Remote Agent
+  const [gatewayUrl, setGatewayUrl] = useState('')
+  const [gatewayToken, setGatewayToken] = useState('')
+
+  const handleShopifySubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
+    setLoading(true)
     setError('')
     try {
       const r = await fetch(`${API}/setup/save`, {
@@ -108,7 +117,38 @@ function Onboarding({ onDone }: { onDone: () => void }) {
         body: JSON.stringify({
           shopify_store_domain: domain.trim(),
           shopify_access_token: token.trim(),
-          shopify_api_version: apiVer.trim(),
+          shopify_api_version: '2026-01',
+        }),
+      })
+      if (!r.ok) {
+        const d = await r.json()
+        throw new Error(d.detail || 'Falhou')
+      }
+      setStep(2)
+    } catch (err: any) {
+      setError(err.message || 'Erro ao ligar a loja')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleViewSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    localStorage.setItem('ec_default_tab', defaultView)
+    setStep(3)
+  }
+
+  const handleGatewaySubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const r = await fetch(`${API}/setup/gateway`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gateway_url: gatewayUrl.trim(),
+          gateway_token: gatewayToken.trim(),
         }),
       })
       if (!r.ok) {
@@ -118,26 +158,319 @@ function Onboarding({ onDone }: { onDone: () => void }) {
       localStorage.setItem('ec_configured', '1')
       onDone()
     } catch (err: any) {
-      setError(err.message || 'Erro ao ligar a loja')
+      setError(err.message || 'Erro ao ligar ao agente')
     } finally {
-      setSaving(false)
+      setLoading(false)
     }
+  }
+
+  const skipGateway = () => {
+    localStorage.setItem('ec_configured', '1')
+    onDone()
+  }
+
+  if (step === 2) {
+    return (
+      <div className="onboarding-wrapper">
+        <div className="onboarding-card" style={{ maxWidth: 480 }}>
+          <div className="onboarding-steps">
+            <div className="onboarding-step-dot done" />
+            <div className="onboarding-step-line done" />
+            <div className="onboarding-step-dot active" />
+            <div className="onboarding-step-line" />
+            <div className="onboarding-step-dot" />
+          </div>
+          <div className="onboarding-logo"><div className="logo-icon">EC</div></div>
+          <h1 className="onboarding-title">Escolhe o teu ecrã inicial</h1>
+          <p className="onboarding-subtitle">O que queres ver quando abres a aplicação?</p>
+          <form onSubmit={handleViewSubmit} className="onboarding-form">
+            <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
+              <button
+                type="button"
+                onClick={() => setDefaultView('dashboard')}
+                className={`onboarding-view-btn ${defaultView === 'dashboard' ? 'active' : ''}`}
+              >
+                <span style={{ fontSize: 32 }}>📊</span>
+                <span style={{ fontWeight: 600, fontSize: 16 }}>Dashboard</span>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Vê métricas, vendas e estado da loja</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDefaultView('chat')}
+                className={`onboarding-view-btn ${defaultView === 'chat' ? 'active' : ''}`}
+              >
+                <span style={{ fontSize: 32 }}>💬</span>
+                <span style={{ fontWeight: 600, fontSize: 16 }}>Chat</span>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Fala diretamente com o Germes</span>
+              </button>
+            </div>
+            <button type="submit" className="onboarding-btn">
+              Continuar
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 3) {
+    return (
+      <div className="onboarding-wrapper">
+        <div className="onboarding-card" style={{ maxWidth: 480 }}>
+          <div className="onboarding-steps">
+            <div className="onboarding-step-dot done" />
+            <div className="onboarding-step-line done" />
+            <div className="onboarding-step-dot done" />
+            <div className="onboarding-step-line done" />
+            <div className="onboarding-step-dot active" />
+          </div>
+          <div className="onboarding-logo"><div className="logo-icon">EC</div></div>
+          <h1 className="onboarding-title">Ligar ao Germes</h1>
+          <p className="onboarding-subtitle">Conecta ao teu agente AI na VPS da Hostinger para poderes falar com ele.</p>
+
+          <form onSubmit={handleGatewaySubmit} className="onboarding-form">
+            <label className="field">
+              <span>URL do Germes (Hostinger VPS)</span>
+              <input value={gatewayUrl} onChange={e => setGatewayUrl(e.target.value)}
+                placeholder="http://123.123.123.123:8888" />
+              <small style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
+                O URL da VPS onde o agente está a correr (o Santy dá-te isto)
+              </small>
+            </label>
+            <label className="field">
+              <span>Token (se houver)</span>
+              <input value={gatewayToken} onChange={e => setGatewayToken(e.target.value)}
+                placeholder="opcional" type="password" />
+            </label>
+            {error && <div className="onboarding-error">{error}</div>}
+            <button type="submit" className="onboarding-btn" disabled={loading || !gatewayUrl.trim()}>
+              {loading ? 'A ligar...' : 'Ligar Germes'}
+            </button>
+            <button type="button" className="onboarding-btn" style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--surface-border)' }}
+              onClick={skipGateway}>
+              Saltar (configurar depois)
+            </button>
+          </form>
+          <p className="onboarding-help" style={{ marginTop: 16 }}>
+            Já tens a loja ligada! Agora só falta o Germes — ou podes configurar depois nas Settings.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="onboarding-wrapper">
-      <div className="onboarding-card">
+      <div className="onboarding-card" style={{ maxWidth: 480 }}>
+        <div className="onboarding-steps">
+          <div className="onboarding-step-dot active" />
+          <div className="onboarding-step-line" />
+          <div className="onboarding-step-dot" />
+          <div className="onboarding-step-line" />
+          <div className="onboarding-step-dot" />
+        </div>
         <div className="onboarding-logo"><div className="logo-icon">EC</div></div>
-        <h1 className="onboarding-title">Ecommerce Agent</h1>
-        <p className="onboarding-subtitle">Conecta a tua loja Shopify para comecar.</p>
-        <form onSubmit={handleSubmit} className="onboarding-form">
-          <label className="field"><span>Shopify store domain</span><input value={domain} onChange={e => setDomain(e.target.value)} placeholder="minha-loja.myshopify.com" required /></label>
-          <label className="field"><span>Shopify Admin API access token</span><input value={token} onChange={e => setToken(e.target.value)} placeholder="shpat_..." required type="password" /></label>
-          <label className="field"><span>API version (opcional)</span><input value={apiVer} onChange={e => setApiVer(e.target.value)} placeholder="2026-01" /></label>
+        <h1 className="onboarding-title">Bem-vindo ao Ecommerce Agent</h1>
+        <p className="onboarding-subtitle">Vamos ligar a tua loja Shopify em 2 passos.</p>
+        <form onSubmit={handleShopifySubmit} className="onboarding-form">
+          <label className="field">
+            <span>Link da tua loja Shopify</span>
+            <input value={domain} onChange={e => setDomain(e.target.value)}
+              placeholder="minha-loja.myshopify.com" required />
+          </label>
+          <label className="field">
+            <span>Token de acesso (Admin API)</span>
+            <input value={token} onChange={e => setToken(e.target.value)}
+              placeholder="shpat_..." required type="password" />
+            <small style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
+              Vai a Shopify Admin &rarr; Settings &rarr; Apps and sales channels &rarr; Develop apps.
+              Cria uma app com <code>read_products</code>, <code>read_orders</code>, <code>write_products</code> e copia o token.
+            </small>
+          </label>
           {error && <div className="onboarding-error">{error}</div>}
-          <button type="submit" className="onboarding-btn" disabled={saving || !domain || !token}>{saving ? 'A testar conexao...' : 'Conectar loja'}</button>
+          <button type="submit" className="onboarding-btn" disabled={loading || !domain || !token}>
+            {loading ? 'A testar conexao...' : 'Ligar loja'}
+          </button>
         </form>
-        <p className="onboarding-help">Precisas de ajuda? Vai a Shopify Admin &rarr; Settings &rarr; Apps and sales channels &rarr; Develop apps. Cria uma app com scopes <code>read_products</code>, <code>read_orders</code>, <code>write_products</code>, instala e copia o token.</p>
+      </div>
+    </div>
+  )
+}
+
+/* ── Settings Panel ─────────────────────────── */
+interface SettingsPanelProps {
+  API: string
+  theme: string
+  setTheme: (t: string) => void
+}
+function SettingsPanel({ API, theme, setTheme }: SettingsPanelProps) {
+  const [shopifyStatus, setShopifyStatus] = useState<'loading' | 'ok' | 'off' | 'err'>('loading')
+  const [gatewayStatus, setGatewayStatus] = useState<'loading' | 'ok' | 'off' | 'err'>('loading')
+  const [gatewayUrl, setGatewayUrl] = useState('')
+  const [showGatewayForm, setShowGatewayForm] = useState(false)
+  const [gwTempUrl, setGwTempUrl] = useState('')
+  const [gwTempToken, setGwTempToken] = useState('')
+  const [gwError, setGwError] = useState('')
+
+  useEffect(() => {
+    fetch(`${API}/setup/status`)
+      .then(r => r.json())
+      .then(d => setShopifyStatus(d.configured ? 'ok' : 'off'))
+      .catch(() => setShopifyStatus('err'))
+  }, [API])
+
+  useEffect(() => {
+    fetch(`${API}/setup/gateway`)
+      .then(r => r.json())
+      .then(d => {
+        setGatewayStatus(d.connected ? 'ok' : d.configured ? 'off' : 'off')
+        if (d.gateway_url) setGatewayUrl(d.gateway_url)
+      })
+      .catch(() => setGatewayStatus('err'))
+  }, [API])
+
+  const handleGatewayUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setGwError('')
+    try {
+      const r = await fetch(`${API}/setup/gateway`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gateway_url: gwTempUrl.trim(),
+          gateway_token: gwTempToken.trim(),
+        }),
+      })
+      const d = await r.json()
+      if (d.connected) {
+        setGatewayStatus('ok')
+        setGatewayUrl(gwTempUrl.trim())
+      } else {
+        setGatewayStatus('off')
+        setGwError('Ligação salva mas gateway não respondeu')
+      }
+      setShowGatewayForm(false)
+    } catch (err: any) {
+      setGwError(err.message || 'Erro ao salvar')
+    }
+  }
+
+  const reconnectShopify = () => {
+    localStorage.removeItem('ec_configured')
+    window.location.reload()
+  }
+
+  const badge = (s: typeof shopifyStatus) => {
+    if (s === 'ok') return <span className="settings-status-badge ok">● Ligado</span>
+    if (s === 'off') return <span className="settings-status-badge off">● Desligado</span>
+    if (s === 'err') return <span className="settings-status-badge err">● Erro</span>
+    return <span className="settings-status-badge off">A verificar...</span>
+  }
+
+  return (
+    <div style={{ padding: '32px 40px', maxWidth: 700 }}>
+      <div className="topbar" style={{ marginBottom: 28 }}>
+        <div>
+          <h1 className="page-title">Settings</h1>
+          <p className="greeting">Configurações da aplicação e conexões</p>
+        </div>
+      </div>
+
+      {/* ── Conexões ── */}
+      <div className="settings-section">
+        <h2>Conexões</h2>
+        <p className="section-desc">Estado das tuas ligações — Shopify + Germes</p>
+
+        <div className="settings-row">
+          <div className="settings-row-label">
+            <span>🛒 Shopify</span>
+            <span>Loja conectada para gerir produtos e encomendas</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {badge(shopifyStatus)}
+            {shopifyStatus === 'off' && (
+              <button className="settings-btn primary" onClick={reconnectShopify}>Ligar</button>
+            )}
+          </div>
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-row-label">
+            <span>🤖 Germes (Agente AI)</span>
+            <span>{gatewayUrl || 'Ainda não configurado'}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {badge(gatewayStatus)}
+            <button className="settings-btn" onClick={() => setShowGatewayForm(!showGatewayForm)}>
+              {showGatewayForm ? 'Fechar' : gatewayUrl ? 'Alterar' : 'Configurar'}
+            </button>
+          </div>
+        </div>
+
+        {showGatewayForm && (
+          <form onSubmit={handleGatewayUpdate} style={{
+            marginTop: 16, padding: 16, background: 'var(--bg)',
+            borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 12,
+          }}>
+            <label className="field">
+              <span>URL do Germes</span>
+              <input value={gwTempUrl} onChange={e => setGwTempUrl(e.target.value)}
+                placeholder="http://hostinger-vps:8888/v1/chat/completions" />
+            </label>
+            <label className="field">
+              <span>Token</span>
+              <input value={gwTempToken} onChange={e => setGwTempToken(e.target.value)}
+                placeholder="opcional" type="password" />
+            </label>
+            {gwError && <div className="onboarding-error">{gwError}</div>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="submit" className="settings-btn primary">Salvar</button>
+              <button type="button" className="settings-btn" onClick={() => setShowGatewayForm(false)}>Cancelar</button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* ── Theme ── */}
+      <div className="settings-section">
+        <h2>Tema</h2>
+        <p className="section-desc">Escolhe o visual da aplicação</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          {[
+            { key: 'dark', label: 'Dark', icon: '🌙', preview: '#0f1117' },
+            { key: 'light', label: 'Light', icon: '☀️', preview: '#f4f5f7' },
+            { key: 'mono', label: 'Mono', icon: '🪨', preview: '#121212' },
+            { key: 'midnight', label: 'Midnight', icon: '🌊', preview: '#0f1419' },
+            { key: 'espresso', label: 'Espresso', icon: '☕', preview: '#0d0d0d' },
+          ].map(t => (
+            <button
+              key={t.key}
+              className="quick-btn"
+              onClick={() => setTheme(t.key)}
+              style={{
+                flex: '1 1 100px', minWidth: 100,
+                padding: '14px 12px', borderRadius: 12,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                background: theme === t.key ? 'var(--accent)' : 'var(--surface)',
+                color: theme === t.key ? '#fff' : 'var(--text)',
+                border: theme === t.key ? '2px solid var(--accent)' : '1px solid var(--surface-border)',
+                fontWeight: theme === t.key ? 600 : 400,
+                fontFamily: 'inherit', cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: 22 }}>{t.icon}</span>
+              <span style={{ fontSize: 12 }}>{t.label}</span>
+              <span style={{ width: 16, height: 16, borderRadius: '50%', background: t.preview, border: '1px solid var(--surface-border)' }} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── API ── */}
+      <div className="settings-section">
+        <h2>API</h2>
+        <p className="section-desc">Backend local</p>
+        <code style={{ background: 'var(--bg)', padding: '8px 14px', borderRadius: 8, display: 'inline-block', fontSize: 13 }}>{API}</code>
       </div>
     </div>
   )
@@ -180,7 +513,9 @@ function Dashboard() {
     if (saved) return saved
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('ec_default_tab') || 'dashboard'
+  })
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(150)
   const [availableModels, setAvailableModels] = useState<string[]>(FALLBACK_MODELS)
@@ -445,18 +780,33 @@ function Dashboard() {
 
   // SSE Streaming hook
   const { isStreaming, error: streamError, stop: stopStreaming, stream: startStream } = useChatStream({
-    onToken: () => {}, // tokens handled via streamingContent
+    onToken: (token) => {
+      setStreamingContent(prev => prev + token)
+    },
     onDone: (fullContent) => {
       setStreamingContent(fullContent)
       setIsStreamingDone(true)
+      setCurrentTool(null)
     },
     onError: (err) => {
       console.error('Stream error:', err)
+      setCurrentTool(null)
+    },
+    onToolProgress: (progress) => {
+      if (progress.status === 'completed') {
+        // Clear tool indicator when done
+        setCurrentTool(null)
+      } else {
+        setCurrentTool(progress)
+      }
     }
   })
 
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreamingDone, setIsStreamingDone] = useState(false)
+  const [currentTool, setCurrentTool] = useState<ToolProgress | null>(null)
+
+  const defaultModel = gatewayActiveModel || 'deepseek-v4-flash'
 
   // ── Chat Operations ─────────────────────
   const createNewSession = useCallback(() => {
@@ -465,12 +815,12 @@ function Dashboard() {
       id,
       title: 'Nova Conversa',
       messages: [],
-      model: 'deepseek-v4-flash',
+      model: gatewayActiveModel || 'deepseek-v4-flash',
     }
     setSessions(prev => [newSession, ...prev])
     setActiveSessionId(id)
     setChatInputValue('')
-  }, [])
+  }, [gatewayActiveModel])
 
   const deleteSession = useCallback((id: string) => {
     setSessions(prev => {
@@ -478,7 +828,7 @@ function Dashboard() {
       if (filtered.length === 0) {
         // Create a default session
         const newId = uid()
-        const def: ChatSession = { id: newId, title: 'Conversa Geral', messages: [], model: 'deepseek-v4-flash' }
+        const def: ChatSession = { id: newId, title: 'Conversa Geral', messages: [], model: gatewayActiveModel || 'deepseek-v4-flash' }
         setActiveSessionId(newId)
         return [def]
       }
@@ -487,7 +837,7 @@ function Dashboard() {
       }
       return filtered
     })
-  }, [activeSessionId])
+  }, [activeSessionId, gatewayActiveModel])
 
   const renameSession = useCallback((id: string, name: string) => {
     setSessions(prev => prev.map(s => s.id === id ? { ...s, title: name } : s))
@@ -1628,9 +1978,6 @@ function Dashboard() {
                     <span className="chat-header-error">{streamError}</span>
                   )}
                 </div>
-                <button className="chat-header-new" onClick={createNewSession} title="Nova conversa">
-                  {Icons.plus}
-                </button>
               </div>
 
               {/* Messages */}
@@ -1638,6 +1985,7 @@ function Dashboard() {
                 messages={activeSession?.messages || []}
                 isStreaming={isStreaming}
                 streamingContent={streamingContent}
+                currentTool={currentTool}
                 onCopy={handleCopyMessage}
                 copiedMessageId={copiedMessageId}
                 onEdit={handleEditMessage}
@@ -1671,7 +2019,7 @@ function Dashboard() {
                   setSessions(prev => prev.map(s =>
                     s.id === activeSessionId ? { ...s, model } : s
                   ))
-                  setActiveModel(model)
+                  setGatewayActiveModel(model)
                 }}
                 models={availableModels}
               />
@@ -2939,67 +3287,11 @@ function Dashboard() {
         )}
 
         {activeTab === 'settings' && (
-          <div style={{ padding: '32px 40px', maxWidth: 700 }}>
-            <div className="topbar" style={{ marginBottom: 28 }}>
-              <div>
-                <h1 className="page-title">Settings</h1>
-                <p className="greeting">Configuracoes da aplicacao</p>
-              </div>
-            </div>
-
-            {/* Theme */}
-            <div className="section" style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Theme</h2>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {[
-                  { key: 'dark', label: 'Dark', icon: '🌙', preview: '#0f1117' },
-                  { key: 'light', label: 'Light', icon: '☀️', preview: '#f4f5f7' },
-                  { key: 'mono', label: 'Mono', icon: '🪨', preview: '#121212' },
-                  { key: 'espresso', label: 'Espresso', icon: '☕', preview: '#1a1512' },
-                  { key: 'midnight', label: 'Midnight', icon: '🌊', preview: '#0f1419' },
-                  { key: 'vermilion', label: 'Vermilion', icon: '🏮', preview: '#1a1214' },
-                  { key: 'sage', label: 'Sage', icon: '🌿', preview: '#131a15' },
-                  { key: 'noir', label: 'Noir', icon: '🖤', preview: '#0d0d0d' },
-                ].map(t => (
-                  <button
-                    key={t.key}
-                    className="quick-btn"
-                    onClick={() => setTheme(t.key)}
-                    style={{
-                      flex: '1 1 100px',
-                      minWidth: 100,
-                      padding: '14px 12px',
-                      borderRadius: 12,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 6,
-                      background: theme === t.key ? 'var(--accent)' : 'var(--surface)',
-                      color: theme === t.key ? '#fff' : 'var(--text)',
-                      border: theme === t.key ? '2px solid var(--accent)' : '1px solid var(--surface-border)',
-                      fontWeight: theme === t.key ? 600 : 400,
-                    }}
-                  >
-                    <span style={{ fontSize: 22 }}>{t.icon}</span>
-                    <span style={{ fontSize: 12 }}>{t.label}</span>
-                    <span style={{
-                      width: 16, height: 16, borderRadius: '50%',
-                      background: t.preview,
-                      border: '1px solid var(--surface-border)'
-                    }} />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* API */}
-            <div className="section" style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>API</h2>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-                Backend API: <code style={{ background: 'var(--surface)', padding: '2px 6px', borderRadius: 4 }}>{API}</code>
-              </p>
-            </div>
-          </div>
+          <SettingsPanel
+            API={API}
+            theme={theme}
+            setTheme={setTheme}
+          />
         )}
       </div>
     </div>

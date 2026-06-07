@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import MessageBubble from './MessageBubble'
+import type { ToolProgress } from './useChatStream'
 
 interface ApprovalInfo {
   id: string
@@ -27,6 +28,7 @@ interface ChatMessagesProps {
   messages: Message[]
   isStreaming: boolean
   streamingContent: string
+  currentTool?: ToolProgress | null
   onCopy: (content: string) => void
   copiedMessageId: string | null
   onEdit?: (index: number, newContent: string) => void
@@ -43,6 +45,7 @@ export default function ChatMessages({
   messages,
   isStreaming,
   streamingContent,
+  currentTool,
   onCopy,
   copiedMessageId,
   onEdit,
@@ -101,20 +104,26 @@ export default function ChatMessages({
   return (
     <div className="chat-messages-container">
       <div className="chat-messages" ref={containerRef} onScroll={handleScroll}>
-        {messages.map((msg, i) => (
-          <MessageBubble
-            key={`${msg.role}-${i}-${msg.content.slice(0, 20)}`}
-            message={msg}
-            index={i}
-            onCopy={onCopy}
-            copied={copiedMessageId === `msg-${i}`}
-            onEdit={onEdit}
-            onRegenerate={onRegenerate}
-            onDelete={onDelete}
-            onApprove={onApprove}
-            onReject={onReject}
-          />
-        ))}
+        {messages.map((msg, i) => {
+          // Skip empty assistant placeholder during streaming — evita 2 avatares
+          if (msg.role === 'assistant' && !msg.content && isStreaming && i === messages.length - 1) {
+            return null
+          }
+          return (
+            <MessageBubble
+              key={`${msg.role}-${i}-${msg.content.slice(0, 20)}`}
+              message={msg}
+              index={i}
+              onCopy={onCopy}
+              copied={copiedMessageId === `msg-${i}`}
+              onEdit={onEdit}
+              onRegenerate={onRegenerate}
+              onDelete={onDelete}
+              onApprove={onApprove}
+              onReject={onReject}
+            />
+          )
+        })}
 
         {/* Streaming message */}
         {isStreaming && streamingContent && (
@@ -136,10 +145,22 @@ export default function ChatMessages({
               </svg>
             </div>
             <div className="message-content">
-              <div className="typing-indicator">
-                <span /><span /><span />
+              <div className="bubble bubble-assistant">
+                <div className="typing-indicator">
+                  <span /><span /><span />
+                </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Tool progress indicator — mostra o que o agente está a fazer */}
+        {currentTool && currentTool.status === 'running' && (
+          <div className="tool-progress-indicator">
+            <span className="tool-progress-spinner" />
+            <span className="tool-progress-label">
+              {currentTool.emoji} {currentTool.label}
+            </span>
           </div>
         )}
 

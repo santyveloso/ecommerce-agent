@@ -145,7 +145,7 @@ export default function MessageBubble({
             </div>
           </div>
         ) : (
-          <>
+          <div className={`bubble ${isUser ? 'bubble-user' : 'bubble-assistant'}`}>
             {message.media && (
               <div className="message-media">
                 {message.media.type === 'image' ? (
@@ -197,7 +197,7 @@ export default function MessageBubble({
                 )}
               </div>
             )}
-          </>
+          </div>
         )}
 
         {/* Timestamp */}
