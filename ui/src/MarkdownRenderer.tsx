@@ -1,4 +1,6 @@
 import React from 'react'
+import InlineRenderer from './InlineRenderer'
+import TableRenderer from './TableRenderer'
 
 /* ── MarkdownRenderer ──────────────────────────── */
 export default function MarkdownRenderer({ content }: { content: string }) {
@@ -61,30 +63,7 @@ function MarkdownBlock({ text }: { text: string }) {
   function flushTable(key: string) {
     if (tableRows.length > 0) {
       elements.push(
-        <div key={key} style={{
-          overflowX: 'auto', margin: '8px 0',
-          borderRadius: '8px', border: '1px solid var(--surface-border)',
-          background: 'var(--surface)'
-        }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', border: 'none' }}>
-            {tableHeaders.length > 0 && (
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--surface-border)' }}>
-                  {tableHeaders.map((h, i) => (
-                    <th key={i} style={{
-                      padding: '8px 12px',
-                      textAlign: (tableAlignments[i] || 'left') as any,
-                      fontWeight: 600, color: 'var(--text)',
-                      background: 'var(--bg-sidebar)',
-                      borderBottom: '1px solid var(--surface-border)'
-                    }}><InlineRenderer text={h} /></th>
-                  ))}
-                </tr>
-              </thead>
-            )}
-            <tbody>{tableRows}</tbody>
-          </table>
-        </div>
+        <TableRenderer key={key} headers={tableHeaders} alignments={tableAlignments} rows={tableRows} />
       )
     }
     tableHeaders = []
@@ -230,24 +209,4 @@ function MarkdownBlock({ text }: { text: string }) {
 
   if (inTable) flushTable('table-end')
   return <>{elements}</>
-}
-
-function InlineRenderer({ text }: { text: string }) {
-  const parts = text.split(/(!?\[([^\]]*)\]\(([^)]+)\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~)/g)
-  const rendered = parts.map((part, i) => {
-    if (!part) return null
-    const imgMatch = part.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
-    if (imgMatch) return <img key={i} src={imgMatch[2]} alt={imgMatch[1] || ''} style={{ maxWidth: '100%', borderRadius: '8px', margin: '4px 0' }} />
-    const linkMatch = part.match(/^\[([^\]]*)\]\(([^)]+)\)$/)
-    if (linkMatch) return <a key={i} href={linkMatch[2]} target="_blank" rel="noreferrer" style={{ color: 'var(--electric)', textDecoration: 'none', borderBottom: '1px solid var(--electric-bg)' }}>{linkMatch[1]}</a>
-    if (part.startsWith('`') && part.endsWith('`')) {
-      const code = part.slice(1, -1)
-      return <code key={i} style={{ background: 'var(--bg-sidebar)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--surface-border)', fontFamily: 'JetBrains Mono, monospace', fontSize: '12.5px', color: 'var(--electric)' }}>{code}</code>
-    }
-    if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} style={{ fontWeight: 700, color: 'var(--text)' }}>{part.slice(2, -2)}</strong>
-    if (part.startsWith('*') && part.endsWith('*')) return <em key={i} style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>{part.slice(1, -1)}</em>
-    if (part.startsWith('~~') && part.endsWith('~~')) return <del key={i} style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{part.slice(2, -2)}</del>
-    return part
-  })
-  return <>{rendered}</>
 }

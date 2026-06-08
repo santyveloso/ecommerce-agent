@@ -48,6 +48,9 @@ class Config:
     provider_api_key: str = ""
     provider_default_model: str = "deepseek-v4-flash"
 
+    # API Key for frontend → backend auth
+    api_key: str = ""
+
     @classmethod
     def from_env(cls) -> "Config":
         # 1) Load project-level .env (~/.hermes/ecommerce-agent/.env) — highest priority
@@ -89,6 +92,19 @@ class Config:
             except Exception:
                 pass
 
+        # 4) Load/generate API key for frontend auth
+        api_key = os.environ.get("ECOMMERCE_API_KEY", "")
+        if not api_key:
+            key_file = Path.home() / ".hermes" / "ecommerce-agent" / ".api_key"
+            if key_file.exists():
+                api_key = key_file.read_text().strip()
+            else:
+                import secrets
+                api_key = secrets.token_hex(32)
+                key_file.parent.mkdir(parents=True, exist_ok=True)
+                key_file.write_text(api_key)
+                key_file.chmod(0o600)
+
         return cls(
             shopify_store_domain=os.environ.get("SHOPIFY_STORE_DOMAIN", ""),
             shopify_access_token=os.environ.get("SHOPIFY_ACCESS_TOKEN", ""),
@@ -114,4 +130,5 @@ class Config:
             provider_base_url=provider_base_url,
             provider_api_key=provider_api_key,
             provider_default_model=provider_default_model,
+            api_key=api_key,
         )

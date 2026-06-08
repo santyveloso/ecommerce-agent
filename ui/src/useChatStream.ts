@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { getApiKey } from './api'
 
 export interface ToolProgress {
   tool: string
@@ -57,7 +58,10 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       try {
         const res = await fetch(`${API}/chat/stream`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(getApiKey() ? { 'X-API-Key': getApiKey() } : {}),
+          },
           body: JSON.stringify({
             messages,
             model,

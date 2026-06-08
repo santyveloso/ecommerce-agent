@@ -1,0 +1,211 @@
+/* ── font ──────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── theme (dark-first, monochromatic) ─────── */
+:root,
+[data-theme="dark"] {
+  --bg: #0f1117;
+  --bg-sidebar: #16181f;
+  --surface: #1c1e26;
+  --surface-hover: #23252e;
+  --surface-border: #262830;
+  --text: #e8eaed;
+  --text-secondary: #8c8f9a;
+  --text-muted: #5c5f6a;
+  --accent: #0066cc;
+  --accent-hover: #1a7ae0;
+  --accent-bg: rgba(0, 102, 204, 0.08);
+  --electric: #38bdf8;
+  --electric-bg: rgba(56, 189, 248, 0.08);
+  --success: #22c55e;
+  --success-bg: rgba(34, 197, 94, 0.1);
+  --warning: #eab308;
+  --warning-bg: rgba(234, 179, 8, 0.1);
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.1);
+  --chart-blue: #3b82f6;
+  --chart-purple: #a855f7;
+  --chart-cyan: #06b6d4;
+}
+
+[data-theme="light"] {
+  --bg: #f4f5f7;
+  --bg-sidebar: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f0f1f3;
+  --surface-border: #e2e4e8;
+  --text: #1a1d23;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --accent: #0066cc;
+  --accent-hover: #0052a3;
+  --accent-bg: rgba(0, 102, 204, 0.06);
+  --electric: #0066cc;
+  --electric-bg: rgba(0, 102, 204, 0.06);
+  --success: #16a34a;
+  --success-bg: rgba(22, 163, 74, 0.08);
+  --warning: #ca8a04;
+  --warning-bg: rgba(202, 138, 4, 0.08);
+  --danger: #dc2626;
+  --danger-bg: rgba(220, 38, 38, 0.08);
+  --chart-blue: #3b82f6;
+  --chart-purple: #a855f7;
+  --chart-cyan: #06b6d4;
+}
+
+/* ── Monochrome Theme (grayscale dark) ───────── */
+[data-theme="mono"] {
+  --bg: #121212;
+  --bg-sidebar: #1a1a1a;
+  --surface: #222222;
+  --surface-hover: #2a2a2a;
+  --surface-border: #333333;
+  --text: #eeeeee;
+  --text-secondary: #999999;
+  --text-muted: #666666;
+  --accent: #888888;
+  --accent-hover: #aaaaaa;
+  --accent-bg: rgba(136, 136, 136, 0.08);
+  --electric: #aaaaaa;
+  --electric-bg: rgba(170, 170, 170, 0.08);
+  --success: #7a9e7a;
+  --success-bg: rgba(122, 158, 122, 0.1);
+  --warning: #9e9a7a;
+  --warning-bg: rgba(158, 154, 122, 0.1);
+  --danger: #b47a7a;
+  --danger-bg: rgba(180, 122, 122, 0.1);
+  --chart-blue: #888888;
+  --chart-purple: #999999;
+  --chart-cyan: #aaaaaa;
+}
+
+/* ── Espresso Theme (rich coffee + caramel) ──── */
+[data-theme="espresso"] {
+  --bg: #1a1512;
+  --bg-sidebar: #221c18;
+  --surface: #2a221e;
+  --surface-hover: #322a24;
+  --surface-border: #3a3028;
+  --text: #e8e0d8;
+  --text-secondary: #a89888;
+  --text-muted: #786858;
+  --accent: #c4986a;
+  --accent-hover: #d4a878;
+  --accent-bg: rgba(196, 152, 106, 0.1);
+  --electric: #d4b080;
+  --electric-bg: rgba(212, 176, 128, 0.08);
+  --success: #8aaa86;
+  --success-bg: rgba(138, 170, 134, 0.1);
+  --warning: #c4a470;
+  --warning-bg: rgba(196, 164, 112, 0.1);
+  --danger: #c4806a;
+  --danger-bg: rgba(196, 128, 106, 0.1);
+  --chart-blue: #c4986a;
+  --chart-purple: #b89878;
+  --chart-cyan: #d4b080;
+}
+
+/* ── Midnight Theme (deep navy + amber) ──────── */
+[data-theme="midnight"] {
+  --bg: #0f1419;
+  --bg-sidebar: #161c24;
+  --surface: #1c2430;
+  --surface-hover: #242c38;
+  --surface-border: #2c3440;
+  --text: #e2e8f0;
+  --text-secondary: #8899aa;
+  --text-muted: #5c6a7a;
+  --accent: #e6a860;
+  --accent-hover: #eebb80;
+  --accent-bg: rgba(230, 168, 96, 0.1);
+  --electric: #60b8e6;
+  --electric-bg: rgba(96, 184, 230, 0.08);
+  --success: #7aae8a;
+  --success-bg: rgba(122, 174, 138, 0.1);
+  --warning: #d0a868;
+  --warning-bg: rgba(208, 168, 104, 0.1);
+  --danger: #c87268;
+  --danger-bg: rgba(200, 114, 104, 0.1);
+  --chart-blue: #60b8e6;
+  --chart-purple: #9a88c8;
+  --chart-cyan: #e6a860;
+}
+
+/* ── Vermilion Theme (deep brick + cream) ────── */
+[data-theme="vermilion"] {
+  --bg: #1a1214;
+  --bg-sidebar: #24181a;
+  --surface: #2e1e20;
+  --surface-hover: #362426;
+  --surface-border: #3e2a2c;
+  --text: #eee0e2;
+  --text-secondary: #b8989a;
+  --text-muted: #886668;
+  --accent: #d4887a;
+  --accent-hover: #e09888;
+  --accent-bg: rgba(212, 136, 122, 0.1);
+  --electric: #e0a090;
+  --electric-bg: rgba(224, 160, 144, 0.08);
+  --success: #8aaa88;
+  --success-bg: rgba(138, 170, 136, 0.1);
+  --warning: #d0a470;
+  --warning-bg: rgba(208, 164, 112, 0.1);
+  --danger: #c47066;
+  --danger-bg: rgba(196, 112, 102, 0.1);
+  --chart-blue: #d4887a;
+  --chart-purple: #c088a0;
+  --chart-cyan: #d4a470;
+}
+
+/* ── Sage Theme (muted green + warm beige) ───── */
+[data-theme="sage"] {
+  --bg: #131a15;
+  --bg-sidebar: #1a241c;
+  --surface: #202e24;
+  --surface-hover: #28362c;
+  --surface-border: #303e34;
+  --text: #e4ece6;
+  --text-secondary: #a0baa4;
+  --text-muted: #6e8a72;
+  --accent: #9ab890;
+  --accent-hover: #a8c8a0;
+  --accent-bg: rgba(154, 184, 144, 0.1);
+  --electric: #c4b880;
+  --electric-bg: rgba(196, 184, 128, 0.08);
+  --success: #90ba8a;
+  --success-bg: rgba(144, 186, 138, 0.1);
+  --warning: #c4a870;
+  --warning-bg: rgba(196, 168, 112, 0.1);
+  --danger: #c48076;
+  --danger-bg: rgba(196, 128, 118, 0.1);
+  --chart-blue: #9ab890;
+  --chart-purple: #a8b898;
+  --chart-cyan: #c4b880;
+}
+
+/* ── Espresso Theme (almost black + warm gold) ── */
+[data-theme="espresso"] {
+  --bg: #0d0d0d;
+  --bg-sidebar: #141414;
+  --surface: #1a1a1a;
+  --surface-hover: #222222;
+  --surface-border: #2a2a2a;
+  --text: #eeeeee;
+  --text-secondary: #999999;
+  --text-muted: #666666;
+  --accent: #d4a060;
+  --accent-hover: #e0b878;
+  --accent-bg: rgba(212, 160, 96, 0.1);
+  --electric: #e0c080;
+  --electric-bg: rgba(224, 192, 128, 0.08);
+  --success: #8aaa86;
+  --success-bg: rgba(138, 170, 134, 0.1);
+  --warning: #c4a870;
+  --warning-bg: rgba(196, 168, 112, 0.1);
+  --danger: #c4766a;
+  --danger-bg: rgba(196, 118, 106, 0.1);
+  --chart-blue: #d4a060;
+  --chart-purple: #b89880;
+  --chart-cyan: #e0c080;
+}
+

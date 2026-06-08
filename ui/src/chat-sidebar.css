@@ -1,0 +1,465 @@
+/* ── Session Sidebar (chat-specific) ────────── */
+.session-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.session-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--bg);
+  margin-bottom: 8px;
+}
+
+.session-search svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.session-search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+}
+
+.session-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-clear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  transition: color 0.12s;
+}
+
+.search-clear:hover {
+  color: var(--text);
+}
+
+.new-session-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px dashed var(--surface-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 12px;
+  font-family: inherit;
+}
+
+.new-session-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.session-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 8px 4px;
+}
+
+/* ── Session Item ───────────────────────────── */
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.12s;
+  position: relative;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.session-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.session-item.active {
+  background: var(--electric-bg);
+  color: var(--electric);
+  font-weight: 500;
+}
+
+.session-pin-icon {
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+.session-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.session-rename-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.session-item-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.session-item-actions button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px;
+  display: flex;
+  border-radius: 4px;
+  transition: all 0.12s;
+}
+
+.session-item-actions button:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.session-msg-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ── Folder ─────────────────────────────────── */
+.folder-group {
+  margin-bottom: 4px;
+}
+
+.folder-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.folder-header:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.folder-chevron {
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+.folder-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.folder-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.folder-rename-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+}
+
+.folder-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.folder-header:hover .folder-actions {
+  opacity: 1;
+}
+
+.folder-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  border-radius: 3px;
+  transition: all 0.12s;
+}
+
+.folder-action-btn:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.folder-sessions {
+  padding-left: 12px;
+}
+
+.folder-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  font-style: italic;
+}
+
+/* ── Session Sidebar Footer ─────────────────── */
+.session-sidebar-footer {
+  padding-top: 8px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.sidebar-footer-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.12s;
+  font-family: inherit;
+}
+
+.sidebar-footer-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* ── Modals ─────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 320px;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.modal h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.modal p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.modal p strong {
+  color: var(--text);
+}
+
+.modal-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  margin-bottom: 16px;
+  transition: border-color 0.15s;
+}
+
+.modal-input:focus {
+  border-color: var(--accent);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal-btn {
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+}
+
+.modal-btn.cancel {
+  border: 1px solid var(--surface-border);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.modal-btn.cancel:hover {
+  background: var(--surface-hover);
+}
+
+.modal-btn.primary {
+  border: none;
+  background: var(--accent);
+  color: white;
+}
+
+.modal-btn.primary:hover {
+  background: var(--accent-hover);
+}
+
+.modal-btn.primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.modal-btn.danger {
+  border: none;
+  background: var(--danger);
+  color: white;
+}
+
+.modal-btn.danger:hover {
+  background: #dc2626;
+}
+
+/* ── Folder Colors ─────────────────────────── */
+.folder-color-picker {
+  margin-bottom: 16px;
+}
+
+.folder-color-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.folder-color-swatches {
+  display: flex;
+  gap: 8px;
+}
+
+.folder-color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.12s;
+  padding: 0;
+}
+
+.folder-color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.folder-color-swatch.active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* ── Tool Progress Indicator ── */
+.tool-progress-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  animation: tool-fade-in 0.2s ease-out;
+}
+
+.tool-progress-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: tool-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.tool-progress-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes tool-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes tool-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

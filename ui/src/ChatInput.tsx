@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import ModelSelector from './ModelSelector'
+import SlashCommandsPopup from './SlashCommandsPopup'
+import MentionSuggestions from './MentionSuggestions'
 
 interface ChatInputProps {
   value: string
@@ -158,31 +161,14 @@ export default function ChatInput({
         <div className="chat-input-footer">
           {/* Model selector — tiny subtle pill */}
           {onModelChange && (
-            <div className="model-selector">
-              <button
-                className="model-selector-btn"
-                onClick={() => setShowModelDropdown(!showModelDropdown)}
-                title="Change model"
-              >
-                <span>{model}</span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-              {showModelDropdown && (
-                <div className="model-dropdown">
-                  {models.map(m => (
-                    <button
-                      key={m}
-                      className={`model-dropdown-item ${m === model ? 'active' : ''}`}
-                      onClick={() => { onModelChange(m); setShowModelDropdown(false) }}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <ModelSelector
+              model={model}
+              models={models}
+              onModelChange={onModelChange}
+              showDropdown={showModelDropdown}
+              onToggleDropdown={() => setShowModelDropdown(!showModelDropdown)}
+              onCloseDropdown={() => setShowModelDropdown(false)}
+            />
           )}
 
           {/* Character count */}
@@ -219,38 +205,20 @@ export default function ChatInput({
 
       {/* Slash commands popup */}
       {showSlashCommands && (
-        <div className="slash-popup">
-          {slashCommands.map((cmd, i) => (
-            <button
-              key={cmd.cmd}
-              className={`slash-item ${i === activeSlashIdx ? 'active' : ''}`}
-              onClick={() => { onChange(cmd.cmd + ' '); setShowSlashCommands(false) }}
-            >
-              <code>{cmd.cmd}</code>
-              <span>{cmd.desc}</span>
-            </button>
-          ))}
-        </div>
+        <SlashCommandsPopup
+          commands={slashCommands}
+          activeIdx={activeSlashIdx}
+          onSelect={(cmd) => { onChange(cmd + ' '); setShowSlashCommands(false) }}
+        />
       )}
 
       {/* @mention suggestions */}
       {showSuggestions && suggestions.length > 0 && (
-        <div className="mention-popup">
-          {suggestions.map((name, i) => (
-            <button
-              key={name}
-              className={`mention-item ${i === activeSuggestionIdx ? 'active' : ''}`}
-              onClick={() => onSelectSuggestion?.(name)}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
-              {name}
-            </button>
-          ))}
-        </div>
+        <MentionSuggestions
+          suggestions={suggestions}
+          activeIdx={activeSuggestionIdx}
+          onSelect={(name) => onSelectSuggestion?.(name)}
+        />
       )}
     </div>
   )

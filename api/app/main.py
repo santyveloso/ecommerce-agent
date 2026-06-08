@@ -24,6 +24,9 @@ from .gateway import GatewayBridge
 from .meta_ads import MetaAdsClient
 from . import setup as setup_mod
 from .zoho import ZohoClient
+from .logging import setup_logger
+
+log = setup_logger()
 
 # ── Models ───────────────────────────────────────────────────────────
 
@@ -80,6 +83,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Auth Dependency ───────────────────────────────────────────────
+
+from fastapi import Header, Request
+from starlette.responses import JSONResponse
+
+# Paths públicos — não precisam de API key
+PUBLIC_PATHS = {
+    "/setup/status", "/setup/shopify", "/setup/gateway",
+    "/gateway/models", "/docs", "/openapi.json", "/redoc",
+    "/studio/uploads", "/health",
+}
+
+async def verify_api_key(request: Request):
+    """Requere API key para todos os endpoints protegidos."""
+    if request.url.path in PUBLIC_PATHS or request.method == "OPTIONS":
+        return True
+    if not config.api_key:
+        return True  # no key configured (setup phase)
+    x_api_key = request.headers.get("X-API-Key", "")
+    if x_api_key != config.api_key:
+        return JSONResponse(status_code=401, content={"error": "API key inválida"})
+    return True
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    result = await verify_api_key(request)
+    if isinstance(result, JSONResponse):
+        return result
+    return await call_next(request)
+
 
 # ── Startup / Shutdown ───────────────────────────────────────────────
 
@@ -87,9 +121,9 @@ app.add_middleware(
 async def startup():
     url = await gateway.discover()
     if url:
-        print(f"🔗 Gateway encontrado em: {url}")
+        log.info("Gateway encontrado em: %s", url)
     else:
-        print("⚠️ Gateway não encontrado. Chat usará modo offline.")
+        log.warning("Gateway não encontrado. Chat usará modo offline.")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -100,8 +134,10 @@ async def shutdown():
 
 @app.get("/setup/status")
 async def setup_status():
-    """Check if Shopify is configured."""
-    return setup_mod.get_status().dict()
+    """Check if Shopify is configured and return API key for auth."""
+    status = setup_mod.get_status().dict()
+    status["api_key"] = config.api_key if status.get("configured") else ""
+    return status
 
 
 @app.post("/setup/save")
@@ -972,10 +1008,32 @@ async def studio_upload(file: UploadFile = File(...)):
     try:
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         
+        # Validar tipo de ficheiro — só imagens
+        ALLOWED_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"}
+        content_type = file.content_type or ""
+        if content_type not in ALLOWED_TYPES:
+            raise HTTPException(400, f"Tipo de ficheiro não aceite: {content_type}. Só imagens (JPEG, PNG, GIF, WebP, SVG).")
+        
         # Ler bytes para hashing antes de guardar
         contents = await file.read()
         if not contents:
             raise HTTPException(400, "Ficheiro vazio")
+        
+        # Limite de tamanho: 10MB
+        max_size = 10 * 1024 * 1024
+        if len(contents) > max_size:
+            raise HTTPException(400, f"Ficheiro demasiado grande: {len(contents) / 1024 / 1024:.1f}MB. Máximo: 10MB.")
+        
+        # Validar magic bytes (evita ficheiros com extensão falsa)
+        magic = contents[:12]
+        if content_type == "image/jpeg" and magic[:3] != b'\xff\xd8\xff':
+            raise HTTPException(400, "Ficheiro não é um JPEG válido")
+        if content_type == "image/png" and magic[:8] != b'\x89PNG\r\n\x1a\n':
+            raise HTTPException(400, "Ficheiro não é um PNG válido")
+        if content_type == "image/gif" and magic[:6] not in (b'GIF89a', b'GIF87a'):
+            raise HTTPException(400, "Ficheiro não é um GIF válido")
+        if content_type == "image/webp" and magic[:4] != b'RIFF':
+            raise HTTPException(400, "Ficheiro não é um WebP válido")
         
         file_hash = hashlib.sha256(contents).hexdigest()
         
@@ -1231,7 +1289,10 @@ async def memory_stats():
 async def read_memory(path: str):
     """Lê conteúdo de um ficheiro de memória (path relativo a ~/ghost/)."""
     full_path = str(Path.home() / "ghost" / path)
-    content = mem_mod.read_file_content(full_path)
+    try:
+        content = mem_mod.read_file_content(full_path)
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
     if not content:
         raise HTTPException(404, "Ficheiro não encontrado")
     return content

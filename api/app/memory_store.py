@@ -54,7 +54,13 @@ def list_memory_files() -> list[dict]:
 
 def read_file_content(path: str) -> Optional[dict]:
     """Lê conteúdo de um ficheiro de memória."""
-    p = Path(path)
+    p = Path(path).resolve()
+    ghost = Path.home() / "ghost"
+    # Segurança: garantir que o path está dentro de ~/ghost/
+    try:
+        p.relative_to(ghost)
+    except ValueError:
+        raise PermissionError("Só é permitido ler dentro de ~/ghost/")
     if not p.exists() or not p.is_file():
         return None
     content = p.read_text(encoding="utf-8")

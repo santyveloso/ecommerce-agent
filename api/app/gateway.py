@@ -11,6 +11,9 @@ import json
 import httpx
 import asyncio
 from .config import Config
+from .logging import setup_logger
+
+log = setup_logger("gateway")
 
 
 GATEWAY_PORTS = [8888, 32774, 8642]
@@ -108,7 +111,7 @@ class GatewayBridge:
                 data = resp.json()
                 return data["choices"][0]["message"]["content"]
             except Exception as e:
-                print(f"Provider direct error, falling back to gateway: {e}")
+                log.warning("Provider direct error, falling back to gateway: %s", e)
 
         # Fallback: gateway
         if not self._available:
@@ -276,7 +279,7 @@ class GatewayBridge:
                         self._cached_models = models
                         return models
             except Exception as e:
-                print(f"Erro ao buscar modelos do provider: {e}")
+                log.error("Erro ao buscar modelos do provider: %s", e)
 
         # 2) Try gateway local /v1/models
         if self._available:
@@ -293,7 +296,7 @@ class GatewayBridge:
                         self._cached_models = models
                         return models
             except Exception as e:
-                print(f"Erro ao buscar modelos do gateway local: {e}")
+                log.error("Erro ao buscar modelos do gateway local: %s", e)
 
         # 3) Fallback: default model + known opencode models
         fallback = [self.selected_model, "kimi-k2.6", "claude-sonnet-4", "minimax-m3", "deepseek-v4-flash"]
