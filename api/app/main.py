@@ -5,16 +5,19 @@ import hashlib
 import json
 import uuid
 import re
+import sqlite3
+import time as _time
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
+from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil
 import os
+import secrets
 import httpx
 
 from .config import Config
@@ -58,6 +61,9 @@ class ActionResponse(BaseModel):
 class SetModelRequest(BaseModel):
     model: str
 
+class MomMessageRequest(BaseModel):
+    text: str
+
 # ── App ──────────────────────────────────────────────────────────────
 
 config = Config.from_env()
@@ -86,23 +92,32 @@ app.add_middleware(
 # ── Auth Dependency ───────────────────────────────────────────────
 
 from fastapi import Header, Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
+from starlette.datastructures import Headers
 
 # Paths públicos — não precisam de API key
 PUBLIC_PATHS = {
     "/setup/status", "/setup/shopify", "/setup/gateway",
     "/gateway/models", "/docs", "/openapi.json", "/redoc",
     "/studio/uploads", "/health",
+    "/mom",  # página HTML tem validação própria via MOM_TOKEN
 }
 
 async def verify_api_key(request: Request):
     """Requere API key para todos os endpoints protegidos."""
     if request.url.path in PUBLIC_PATHS or request.method == "OPTIONS":
         return True
-    if not config.api_key:
-        return True  # no key configured (setup phase)
+    if not config.api_key and not MOM_TOKEN:
+        return True  # no keys configured (setup phase)
+
+    # Mom endpoints: aceitam X-Mom-Token (página da Mãe) ou X-API-Key (admin)
+    if request.url.path.startswith("/api/mom/"):
+        x_mom_token = request.headers.get("X-Mom-Token", "")
+        if x_mom_token and x_mom_token == MOM_TOKEN:
+            return True
+
     x_api_key = request.headers.get("X-API-Key", "")
-    if x_api_key != config.api_key:
+    if config.api_key and x_api_key != config.api_key:
         return JSONResponse(status_code=401, content={"error": "API key inválida"})
     return True
 
@@ -115,10 +130,105 @@ async def auth_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+# ── Rate Limiting ────────────────────────────────────────────────
+
+import collections
+import time as _time
+
+_rate_limit_store: dict[str, list[float]] = {}
+
+def _rate_limit_key(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX = 10     # requests per window
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    if request.method not in ("POST", "PUT", "DELETE"):
+        return await call_next(request)
+
+    key = _rate_limit_key(request)
+    now = _time.time()
+    window_start = now - RATE_LIMIT_WINDOW
+
+    timestamps = _rate_limit_store.get(key, [])
+    # Keep only timestamps inside the window
+    timestamps = [t for t in timestamps if t > window_start]
+    timestamps.append(now)
+    _rate_limit_store[key] = timestamps
+
+    if len(timestamps) > RATE_LIMIT_MAX:
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Demasiados pedidos. Tenta novamente dentro de 1 minuto."},
+        )
+
+    return await call_next(request)
+
+
 # ── Startup / Shutdown ───────────────────────────────────────────────
+
+MOM_DB_PATH = Path.home() / ".hermes" / "ecommerce-agent" / "mom.db"
+
+def _get_mom_db() -> sqlite3.Connection:
+    """Open a connection to the mom_messages SQLite DB."""
+    conn = sqlite3.connect(str(MOM_DB_PATH), timeout=5)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
+def _mom_retry(attempt: int) -> bool:
+    """Exponential backoff for SQLite locking: 0.1s, 0.3s, 0.5s. Returns True if should retry."""
+    delays = [0.1, 0.3, 0.5]
+    if attempt < len(delays):
+        _time.sleep(delays[attempt])
+        return True
+    return False
+
+def _init_mom_db():
+    """Create mom_messages table if it doesn't exist."""
+    MOM_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = _get_mom_db()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS mom_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text TEXT NOT NULL,
+                "from" TEXT NOT NULL CHECK("from" IN ('santy', 'mom')),
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+    MOM_DB_PATH.chmod(0o600)
+
+MOM_TOKEN_FILE = Path.home() / ".hermes" / "ecommerce-agent" / ".mom_token"
+
+def _get_mom_token() -> str:
+    """Return MOM_TOKEN from env, or generate + persist a random one."""
+    env_token = os.environ.get("MOM_TOKEN")
+    if env_token:
+        return env_token
+    MOM_TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if MOM_TOKEN_FILE.exists():
+        return MOM_TOKEN_FILE.read_text().strip()
+    token = secrets.token_urlsafe(32)
+    MOM_TOKEN_FILE.write_text(token + "\n")
+    MOM_TOKEN_FILE.chmod(0o600)
+    log.warning("MOM_TOKEN não definido em env. Gerado: %s (guardado em %s)", token, MOM_TOKEN_FILE)
+    return token
+
+MOM_TOKEN = _get_mom_token()
+
 
 @app.on_event("startup")
 async def startup():
+    _init_mom_db()
     url = await gateway.discover()
     if url:
         log.info("Gateway encontrado em: %s", url)
@@ -1333,5 +1443,286 @@ async def add_memory(req: MemoryAddRequest):
         return {"status": "ok", "path": str(memory_path)}
     except Exception as e:
         raise HTTPException(500, f"Erro ao adicionar memória: {e}")
+
+
+# ── Mom Chat ─────────────────────────────────────────────────────
+
+@app.get("/api/mom/messages")
+async def mom_messages_get(since: int = Query(0, ge=0)):
+    """Return mom messages with id > since, max 50, ordered by id ASC."""
+    for attempt in range(3):
+        try:
+            conn = _get_mom_db()
+            try:
+                rows = conn.execute(
+                    'SELECT id, text, "from", created_at FROM mom_messages WHERE id > ? ORDER BY id ASC LIMIT 50',
+                    (since,),
+                ).fetchall()
+                return {
+                    "messages": [
+                        {"id": r["id"], "text": r["text"], "from": r["from"], "created_at": r["created_at"]}
+                        for r in rows
+                    ]
+                }
+            finally:
+                conn.close()
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e) and _mom_retry(attempt):
+                continue
+            raise HTTPException(503, "Base de dados temporariamente indisponível")
+
+
+@app.post("/api/mom/messages")
+async def mom_messages_post(req: MomMessageRequest):
+    """Send a message from santy. Max 500 chars. Trims whitespace."""
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Mensagem não pode estar vazia")
+    if len(text) > 500:
+        raise HTTPException(400, "Mensagem demasiado longa (máx. 500 caracteres)")
+
+    for attempt in range(3):
+        try:
+            conn = _get_mom_db()
+            try:
+                cursor = conn.execute(
+                    'INSERT INTO mom_messages (text, "from") VALUES (?, ?)',
+                    (text, "santy"),
+                )
+                conn.commit()
+                msg_id = cursor.lastrowid
+                # Cap at 500 rows only when table exceeds limit
+                row = conn.execute("SELECT COUNT(*) as cnt FROM mom_messages").fetchone()
+                if row["cnt"] > 500:
+                    conn.execute(
+                        "DELETE FROM mom_messages WHERE id NOT IN "
+                        "(SELECT id FROM mom_messages ORDER BY id DESC LIMIT 500)"
+                    )
+                    conn.commit()
+                row = conn.execute(
+                    'SELECT id, text, "from", created_at FROM mom_messages WHERE id = ?',
+                    (msg_id,),
+                ).fetchone()
+                return {
+                    "id": row["id"],
+                    "text": row["text"],
+                    "from": row["from"],
+                    "created_at": row["created_at"],
+                }
+            finally:
+                conn.close()
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e) and _mom_retry(attempt):
+                continue
+            raise HTTPException(503, "Base de dados temporariamente indisponível")
+
+
+@app.post("/api/mom/messages/inbound")
+async def mom_messages_inbound(req: MomMessageRequest):
+    """Receive a message from mom (webhook for mom's side)."""
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Mensagem não pode estar vazia")
+    if len(text) > 500:
+        raise HTTPException(400, "Mensagem demasiado longa (máx. 500 caracteres)")
+
+    for attempt in range(3):
+        try:
+            conn = _get_mom_db()
+            try:
+                cursor = conn.execute(
+                    'INSERT INTO mom_messages (text, "from") VALUES (?, ?)',
+                    (text, "mom"),
+                )
+                conn.commit()
+                msg_id = cursor.lastrowid
+                # Cap at 500 rows only when table exceeds limit
+                row = conn.execute("SELECT COUNT(*) as cnt FROM mom_messages").fetchone()
+                if row["cnt"] > 500:
+                    conn.execute(
+                        "DELETE FROM mom_messages WHERE id NOT IN "
+                        "(SELECT id FROM mom_messages ORDER BY id DESC LIMIT 500)"
+                    )
+                    conn.commit()
+                row = conn.execute(
+                    'SELECT id, text, "from", created_at FROM mom_messages WHERE id = ?',
+                    (msg_id,),
+                ).fetchone()
+                return {
+                    "id": row["id"],
+                    "text": row["text"],
+                    "from": row["from"],
+                    "created_at": row["created_at"],
+                }
+            finally:
+                conn.close()
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e) and _mom_retry(attempt):
+                continue
+            raise HTTPException(503, "Base de dados temporariamente indisponível")
+
+
+@app.get("/mom", response_class=HTMLResponse)
+async def mom_page(request: Request, token: str = Query("")):
+    """Server-rendered mom chat page. Token-protected via cookie redirect."""
+    # 1) Token no query param → valida, set cookie, redireciona sem token na URL
+    if token:
+        if token == MOM_TOKEN:
+            resp = RedirectResponse(url="/mom", status_code=302)
+            resp.set_cookie(
+                key="mom_token", value=token,
+                max_age=86400 * 30, httponly=True, samesite="strict",
+            )
+            return resp
+        return HTMLResponse(
+            content='''<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'''
+            '''<title>Link inválido</title>'''
+            '''<style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fdf6ec;font-family:system-ui,-apple-system,sans-serif;color:#8b6914;text-align:center;padding:20px}'''
+            '''.card{background:#fff;padding:40px 32px;border-radius:20px;box-shadow:0 2px 16px rgba(0,0,0,.06);max-width:360px}'''
+            '''h2{margin:0 0 8px;font-size:20px}p{margin:0;font-size:15px;color:#a08540}</style></head>'''
+            '''<body><div class="card"><h2>\U0001f512 Link inválido</h2><p>Pede ao Santiago para gerar um novo link.</p></div></body></html>''',
+            status_code=401,
+        )
+
+    # 2) Sem token na URL — lê cookie
+    cookie_token = request.cookies.get("mom_token", "")
+    if cookie_token != MOM_TOKEN:
+        return HTMLResponse(
+            content='''<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'''
+            '''<title>Link inválido</title>'''
+            '''<style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fdf6ec;font-family:system-ui,-apple-system,sans-serif;color:#8b6914;text-align:center;padding:20px}'''
+            '''.card{background:#fff;padding:40px 32px;border-radius:20px;box-shadow:0 2px 16px rgba(0,0,0,.06);max-width:360px}'''
+            '''h2{margin:0 0 8px;font-size:20px}p{margin:0;font-size:15px;color:#a08540}</style></head>'''
+            '''<body><div class="card"><h2>\U0001f512 Link inválido</h2><p>Pede ao Santiago para gerar um novo link.</p></div></body></html>''',
+            status_code=401,
+        )
+
+    token_json = json.dumps(cookie_token)
+    html = f"""<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Chat Mãe</title>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:18px;background:#fdf6ec;color:#5a4a1a;min-height:100dvh;display:flex;flex-direction:column}}
+.header{{background:#fff;border-bottom:1px solid #f0e6cc;padding:14px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}}
+.header .avatar{{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#f5d76e,#f39c12);display:flex;align-items:center;justify-content:center;font-size:20px}}
+.header .name{{font-weight:600;font-size:17px}}
+.header .sub{{font-size:13px;color:#a08540}}
+.offline-banner{{background:#fef3cd;color:#856404;text-align:center;padding:6px;font-size:14px;display:none;flex-shrink:0}}
+.messages{{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}}
+.messages:empty::after{{content:'Ainda não há mensagens 💬';display:flex;align-items:center;justify-content:center;height:100%;color:#c4a84a;font-size:18px}}
+.bubble{{max-width:78%;padding:12px 16px;border-radius:18px;font-size:18px;line-height:1.45;word-break:break-word;position:relative}}
+.bubble.mom{{background:#fff;border:1px solid #f0e6cc;border-bottom-left-radius:4px;align-self:flex-start}}
+.bubble.santy{{background:#2563eb;color:#fff;border-bottom-right-radius:4px;align-self:flex-end}}
+.bubble .meta{{font-size:12px;opacity:.6;margin-top:4px}}
+.bubble.santy .meta{{opacity:.5}}
+.bubble .sender{{font-size:13px;font-weight:600;margin-bottom:2px}}
+.bubble.mom .sender{{color:#b8860b}}
+.input-area{{background:#fff;border-top:1px solid #f0e6cc;padding:12px 14px;display:flex;gap:10px;flex-shrink:0}}
+.input-area input{{flex:1;padding:14px 16px;border:1px solid #e8d9b0;border-radius:14px;font-size:18px;background:#fdf6ec;color:#5a4a1a;outline:none}}
+.input-area input:focus{{border-color:#d4a820}}
+.input-area button{{padding:14px 24px;border:none;border-radius:14px;background:linear-gradient(135deg,#f5d76e,#f39c12);color:#fff;font-size:18px;font-weight:600;cursor:pointer;white-space:nowrap}}
+.input-area button:active{{transform:scale(.97)}}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="avatar">💛</div>
+  <div><div class="name">Mamãe</div><div class="sub">Online agora</div></div>
+</div>
+<div class="offline-banner" id="offline">Sem ligação — a tentar novamente...</div>
+<div class="messages" id="msgs"></div>
+<div class="input-area">
+  <input id="inp" type="text" placeholder="Escreve uma mensagem..." maxlength="500" autocomplete="off">
+  <button id="send" onclick="sendMsg()">Enviar</button>
+</div>
+<script>
+(function(){{
+  var TOKEN={token_json};
+  var API='http://localhost:7777';
+  var lastId=0;
+  var msgs=document.getElementById('msgs');
+  var inp=document.getElementById('inp');
+  var offline=document.getElementById('offline');
+  var pollTimer=null;
+
+  function fmtTime(iso){{
+    if(!iso) return '';
+    var d=new Date(iso+'Z');
+    var now=new Date();
+    var pad=function(n){{return n<10?'0'+n:n;}};
+    var time=pad(d.getHours())+':'+pad(d.getMinutes());
+    var sameDay=d.toDateString()===now.toDateString();
+    var yesterday=new Date(now);yesterday.setDate(now.getDate()-1);
+    if(sameDay) return time;
+    if(d.toDateString()===yesterday.toDateString()) return 'ontem \u00e0s '+time;
+    return pad(d.getDate())+'/'+pad(d.getMonth()+1)+' '+time;
+  }}
+
+  function renderMsg(m){{
+    var div=document.createElement('div');
+    div.className='bubble '+(m.from==='mom'?'mom':'santy');
+    var sender=m.from==='mom'?'M\u00e3e':'Tu';
+    div.innerHTML='<div class="sender">'+sender+'</div><div>'+escHtml(m.text)+'</div><div class="meta">'+fmtTime(m.created_at)+'</div>';
+    return div;
+  }}
+
+  function escHtml(s){{var d=document.createElement('div');d.textContent=s;return d.innerHTML;}}
+
+  function scrollToBottom(){{msgs.scrollTop=msgs.scrollHeight;}}
+
+  function fetchNew(){{
+    fetch(API+'/api/mom/messages?since='+lastId,{{headers:{{'X-Mom-Token':TOKEN}}}})
+      .then(function(r){{if(!r.ok)throw new Error();return r.json();}})
+      .then(function(data){{
+        offline.style.display='none';
+        if(data.messages&&data.messages.length){{
+          data.messages.forEach(function(m){{
+            msgs.appendChild(renderMsg(m));
+            if(m.id>lastId)lastId=m.id;
+          }});
+          scrollToBottom();
+          pollTimer=setTimeout(fetchNew,5000);
+        }}else{{
+          pollTimer=setTimeout(fetchNew,5000);
+        }}
+      }})
+      .catch(function(){{
+        offline.style.display='block';
+        pollTimer=setTimeout(fetchNew,10000);
+      }});
+  }}
+
+  window.sendMsg=function(){{
+    var text=inp.value.trim();
+    if(!text)return;
+    inp.value='';
+    fetch(API+'/api/mom/messages',{{
+      method:'POST',
+      headers:{{'Content-Type':'application/json','X-Mom-Token':TOKEN}},
+      body:JSON.stringify({{text:text}})
+    }})
+    .then(function(r){{if(!r.ok)return r.json().then(function(e){{throw new Error(e.detail||'Erro');}});return r.json();}})
+    .then(function(m){{
+      msgs.appendChild(renderMsg(m));
+      lastId=m.id;
+      scrollToBottom();
+    }})
+    .catch(function(e){{alert(e.message||'Erro ao enviar');inp.value=text;}});
+  }};
+
+  inp.addEventListener('keydown',function(e){{if(e.key==='Enter')sendMsg();}});
+  fetchNew();
+}})();
+</script>
+</body>
+</html>"""
+    resp = HTMLResponse(content=html)
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
 
 

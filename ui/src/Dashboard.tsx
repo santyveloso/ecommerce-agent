@@ -10,6 +10,7 @@ import { useEmailsState } from './useEmailsState'
 import { useMemoryState } from './useMemoryState'
 import { useAutomationsState } from './useAutomationsState'
 import { useLinksState } from './useLinksState'
+import { useMomState } from './useMomState'
 import { useGatewayModels } from './useGatewayModels'
 import { useStatusData } from './useStatusData'
 import DashboardBody from './DashboardBody'
@@ -160,6 +161,15 @@ export default function Dashboard() {
     displayLinks,
     addLink, deleteLink,
   } = useLinksState()
+
+  // ── Mom Tab ──────────────────────────────
+  const {
+    messages: momMessages,
+    loading: momLoading,
+    sending: momSending,
+    unreadCount: momUnreadCount,
+    sendMessage: momSendMessage,
+  } = useMomState(activeTab)
 
   // ── Automations Tab ─────────────────────
   const {
@@ -374,6 +384,11 @@ export default function Dashboard() {
       setShopifyUrl={setShopifyUrl}
       addLink={addLink}
       deleteLink={deleteLink}
+      momMessages={momMessages}
+      momLoading={momLoading}
+      momSending={momSending}
+      momUnreadCount={momUnreadCount}
+      onMomSendMessage={momSendMessage}
     />
   )
 }

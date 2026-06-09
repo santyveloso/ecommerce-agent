@@ -1,6 +1,5 @@
 import { useState } from 'react'
-
-const API = 'http://localhost:7777'
+import { API } from './constants'
 
 /* ── Onboarding ─────────────────────────────── */
 export default function Onboarding({ onDone }: { onDone: () => void }) {

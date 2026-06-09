@@ -1,5 +1,5 @@
 // ── API helper — wraps fetch with API key auth ──────────────────
-const API = 'http://localhost:7777'
+import { API } from './constants'
 
 let _apiKey: string = ''
 

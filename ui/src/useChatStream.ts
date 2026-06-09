@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getApiKey } from './api'
+import { API } from './constants'
 
 export interface ToolProgress {
   tool: string
@@ -21,8 +22,6 @@ export interface UseChatStreamReturn {
   stop: () => void
   stream: (messages: Array<{ role: string; content: string }>, model?: string) => Promise<void>
 }
-
-const API = 'http://localhost:7777'
 
 export function useChatStream(options: UseChatStreamOptions = {}): UseChatStreamReturn {
   const [isStreaming, setIsStreaming] = useState(false)

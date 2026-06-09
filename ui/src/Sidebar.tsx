@@ -8,6 +8,7 @@ interface SidebarProps {
   sidebarWidth: number
   sidebarRef: RefObject<HTMLDivElement | null>
   handleResizeStart: (e: React.MouseEvent) => void
+  momUnreadCount?: number
 }
 
 export default function Sidebar({
@@ -17,6 +18,7 @@ export default function Sidebar({
   sidebarWidth,
   sidebarRef,
   handleResizeStart,
+  momUnreadCount = 0,
 }: SidebarProps) {
   return (
     <div ref={sidebarRef} className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarCollapsed ? 56 : sidebarWidth }}>
@@ -54,6 +56,31 @@ export default function Sidebar({
         </a>
         <a className={`nav-item ${activeTab === 'links' ? 'active' : ''}`} onClick={() => setActiveTab('links')}>
           {Icons.link}{!sidebarCollapsed && <span>Links</span>}
+        </a>
+        <a className={`nav-item ${activeTab === 'mom' ? 'active' : ''}`} onClick={() => setActiveTab('mom')} style={{ position: 'relative' }}>
+          {Icons.heart}{!sidebarCollapsed && <span>Mãe</span>}
+          {momUnreadCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              right: sidebarCollapsed ? 8 : 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: '#ef4444',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 700,
+              minWidth: 18,
+              height: 18,
+              borderRadius: 9,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 4px',
+              lineHeight: 1,
+            }}>
+              {momUnreadCount > 99 ? '99+' : momUnreadCount}
+            </span>
+          )}
         </a>
         <a className={`nav-item ${activeTab === 'status' ? 'active' : ''}`} onClick={() => setActiveTab('status')}>
           {Icons.activity}{!sidebarCollapsed && <span>Status</span>}
